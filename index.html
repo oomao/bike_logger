@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>家庭飛輪紀錄</title>
+<style>
+:root {
+  --bg: #f4f6f5;
+  --card: #ffffff;
+  --text: #17201d;
+  --muted: #5f6b67;
+  --line: #dde3e0;
+  --accent: #0f766e;
+  --accent-text: #ffffff;
+  --danger: #b42318;
+  --ok: #067647;
+  --warn: #b54708;
+  --tile: #eef3f1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1412;
+    --card: #17201d;
+    --text: #e8eeeb;
+    --muted: #9aa8a3;
+    --line: #2a3531;
+    --accent: #2bb3a3;
+    --accent-text: #06201c;
+    --danger: #f97066;
+    --ok: #47cd89;
+    --warn: #fdb022;
+    --tile: #1e2925;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1412; --card: #17201d; --text: #e8eeeb; --muted: #9aa8a3; --line: #2a3531;
+  --accent: #2bb3a3; --accent-text: #06201c; --danger: #f97066; --ok: #47cd89; --warn: #fdb022; --tile: #1e2925;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+}
+main { max-width: 720px; margin: 0 auto; padding: 12px 16px 48px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 4px; }
+h1 { font-size: 1.25rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0 0 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 12px; }
+.pill { font-size: .8rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill.on { color: var(--ok); border-color: var(--ok); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button, .btn {
+  font: inherit; font-size: .95rem; border: 1px solid var(--line); background: var(--tile); color: var(--text);
+  padding: 9px 14px; border-radius: 10px; cursor: pointer; min-height: 42px;
+}
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.danger { color: var(--danger); }
+button:disabled { opacity: .45; cursor: default; }
+button.small { min-height: 32px; padding: 4px 10px; font-size: .85rem; }
+.chip { border-radius: 999px; }
+.chip.sel { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+input[type=text] { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; flex: 1 1 140px; }
+select { font: inherit; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.status { color: var(--muted); font-size: .9rem; margin-top: 8px; min-height: 1.4em; }
+.status.err { color: var(--danger); }
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 560px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+.tile { background: var(--tile); border-radius: 12px; padding: 10px 12px; }
+.tile .k { font-size: .8rem; color: var(--muted); }
+.tile .v { font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tile .u { font-size: .8rem; color: var(--muted); margin-left: 3px; font-weight: 400; }
+.tile.big .v { font-size: 2.4rem; }
+.ridebar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 10px 0 0; flex-wrap: wrap; }
+.ridebar .who { font-weight: 600; }
+.muted { color: var(--muted); font-size: .9rem; }
+.hist { list-style: none; padding: 0; margin: 8px 0 0; }
+.hist li { border-top: 1px solid var(--line); padding: 10px 0; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.hist .d { font-weight: 600; }
+.hist .m { color: var(--muted); font-size: .85rem; }
+.totals { display: flex; gap: 16px; flex-wrap: wrap; font-size: .9rem; color: var(--muted); }
+.totals b { color: var(--text); font-size: 1rem; }
+details summary { cursor: pointer; font-weight: 600; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: .9rem; margin-top: 8px; }
+.kv div:nth-child(odd) { color: var(--muted); }
+pre { background: var(--tile); border-radius: 10px; padding: 10px; font-size: .75rem; overflow-x: auto; max-height: 260px; margin: 8px 0 0; white-space: pre-wrap; word-break: break-all; }
+.banner { background: var(--tile); border-left: 4px solid var(--warn); padding: 10px 12px; border-radius: 8px; font-size: .9rem; margin-top: 12px; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>家庭飛輪紀錄</h1>
+    <span id="connPill" class="pill">未連線</span>
+  </header>
+
+  <div id="unsupported" class="banner hidden"></div>
+
+  <section class="card">
+    <h2>誰要騎？</h2>
+    <div id="members" class="row"></div>
+    <div class="row" style="margin-top:10px">
+      <input id="newName" type="text" placeholder="新增家人名字" maxlength="20">
+      <button id="addMember">新增</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>連線</h2>
+    <div class="row">
+      <button id="btnConnect" class="primary">連線飛輪</button>
+      <button id="btnReconnect" disabled>重新連線</button>
+      <button id="btnDisconnect" disabled>中斷</button>
+      <button id="btnScanAll">診斷：列出所有裝置</button>
+    </div>
+    <div id="status" class="status">請先踩幾下讓錶頭亮起來，再按「連線飛輪」。</div>
+  </section>
+
+  <section class="card">
+    <h2>即時數據</h2>
+    <div class="grid">
+      <div class="tile big"><div class="k">功率</div><div class="v"><span id="vPower">—</span><span class="u">W</span></div></div>
+      <div class="tile big"><div class="k">踏頻</div><div class="v"><span id="vCad">—</span><span class="u">rpm</span></div></div>
+      <div class="tile"><div class="k">速度</div><div class="v"><span id="vSpeed">—</span><span class="u">km/h</span></div></div>
+      <div class="tile"><div class="k">阻力段數</div><div class="v"><span id="vRes">—</span></div></div>
+      <div class="tile"><div class="k">本趟時間</div><div class="v"><span id="vTime">0:00</span></div></div>
+      <div class="tile"><div class="k">距離</div><div class="v"><span id="vDist">0.00</span><span class="u">km</span></div></div>
+      <div class="tile"><div class="k">卡路里</div><div class="v"><span id="vKcal">0</span><span class="u">kcal</span></div></div>
+      <div class="tile"><div class="k">心率</div><div class="v"><span id="vHr">—</span><span class="u">bpm</span></div></div>
+    </div>
+    <div class="ridebar">
+      <div><span class="muted">騎乘者：</span><span id="rideWho" class="who">—</span> <span id="rideState" class="muted"></span></div>
+      <div class="row">
+        <button id="btnFinish" class="primary" disabled>結束並儲存</button>
+        <button id="btnDiscard" class="danger" disabled>放棄這趟</button>
+      </div>
+    </div>
+    <p class="muted" style="margin:8px 0 0">開始踩就會自動計時；停踩超過 60 秒會自動結束並儲存。換人前請按「結束並儲存」，手機會放開飛輪的藍牙，下一個人才連得上。</p>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">紀錄</h2>
+      <select id="histFilter"></select>
+    </div>
+    <div id="totals" class="totals" style="margin-top:10px"></div>
+    <ul id="hist" class="hist"></ul>
+  </section>
+
+  <section class="card">
+    <h2>備份</h2>
+    <div class="row">
+      <button id="btnExportJson">匯出備份</button>
+      <label class="btn">匯入備份<input id="importFile" type="file" accept="application/json,.json" class="hidden"></label>
+      <button id="btnExportCsv">匯出 CSV</button>
+      <button id="btnDelMember" class="danger">刪除目前的家人</button>
+    </div>
+    <p class="muted" style="margin:8px 0 0">紀錄只存在這支手機的瀏覽器裡，清除瀏覽器資料就會消失，請定期匯出備份。每趟的 TCX 檔可以手動上傳到 Strava。</p>
+  </section>
+
+  <section class="card">
+    <details id="diagBox">
+      <summary>診斷資訊</summary>
+      <div id="diag" class="kv"></div>
+      <pre id="rawlog">（連線後顯示原始封包）</pre>
+    </details>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+const STORE_KEY = 'bikeLogger.v1';
+const IDLE_SEC = 60;        // 停踩多久自動結束
+const MIN_SAVE_SEC = 60;    // 少於這個秒數不存
+const SAMPLE_EVERY = 5;     // 每幾秒存一個取樣點（給 TCX 用）
+const STALE_MS = 3000;      // 超過這麼久沒收到數據就當作停止
+
+// ---------- 儲存 ----------
+function loadDb() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (d && Array.isArray(d.members) && Array.isArray(d.rides)) return d;
+  } catch (e) { /* 讀不到就用空的 */ }
+  return { members: [], current: null, rides: [] };
+}
+function saveDb() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(db));
+    return true;
+  } catch (e) {
+    alert('儲存失敗（' + e.message + '），請先匯出備份。');
+    return false;
+  }
+}
+let db = loadDb();
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const memberName = id => (db.members.find(m => m.id === id) || {}).name || '（已刪除）';
+
+// ---------- 藍牙 UUID ----------
+const full16 = n => '0000' + n.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb';
+const short16 = uuid => {
+  const m = /^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/.exec(uuid);
+  return m ? parseInt(m[1], 16) : null;
+};
+const SVC = { FTMS: 0x1826, CPS: 0x1818, CSC: 0x1816, HRS: 0x180d, DIS: 0x180a, BAT: 0x180f };
+// 常見中國/台灣廠商自訂服務，列出來方便診斷
+const VENDOR_SVCS = [0xfff0, 0xffe0, 0xff00, 0xffb0, 0xfee7];
+const SVC_NAMES = {
+  0x1826: '健身器材 FTMS', 0x1818: '功率 Cycling Power', 0x1816: '速度/踏頻 CSC',
+  0x180d: '心率', 0x180a: '裝置資訊', 0x180f: '電池',
+};
+const hex = dv => Array.from(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength))
+  .map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+// ---------- 封包解析 ----------
+// FTMS Indoor Bike Data (0x2AD2)
+function parseIndoorBike(dv) {
+  const r = {};
+  let o = 0;
+  try {
+    const f = dv.getUint16(o, true); o += 2;
+    if (!(f & 0x0001)) { r.speed = dv.getUint16(o, true) / 100; o += 2; }   // More Data=0 時才有瞬時速度
+    if (f & 0x0002) o += 2;                                                   // 平均速度
+    if (f & 0x0004) { r.cadence = dv.getUint16(o, true) / 2; o += 2; }
+    if (f & 0x0008) o += 2;                                                   // 平均踏頻
+    if (f & 0x0010) { r.distance = dv.getUint16(o, true) | (dv.getUint8(o + 2) << 16); o += 3; }
+    if (f & 0x0020) { r.resistance = dv.getInt16(o, true); o += 2; }
+    if (f & 0x0040) { r.power = dv.getInt16(o, true); o += 2; }
+    if (f & 0x0080) o += 2;                                                   // 平均功率
+    if (f & 0x0100) { const t = dv.getUint16(o, true); if (t !== 0xffff) r.kcal = t; o += 5; }
+    if (f & 0x0200) { r.hr = dv.getUint8(o); o += 1; }
+    if (f & 0x0400) o += 1;                                                   // MET
+    if (f & 0x0800) { r.elapsed = dv.getUint16(o, true); o += 2; }
+  } catch (e) { /* 封包比旗標描述的短，就回傳已解析的部分 */ }
+  return r;
+}
+
+// 曲柄轉數 → 踏頻（CPS / CSC 共用）
+const crankState = {};
+function crankCadence(key, revs, time) {
+  const now = Date.now();
+  const prev = crankState[key];
+  crankState[key] = { revs, time, at: now, cad: prev ? prev.cad : 0 };
+  if (!prev) return null;
+  const dRevs = (revs - prev.revs) & 0xffff;
+  const dt = ((time - prev.time) & 0xffff) / 1024;
+  if (dt > 0 && dRevs < 20) {
+    crankState[key].cad = Math.round(60 * dRevs / dt);
+    return crankState[key].cad;
+  }
+  // 沒有新的踩踏事件：超過 3 秒沒變就視為 0
+  crankState[key].at = prev.at;
+  crankState[key].cad = prev.cad;
+  return now - prev.at > 3000 ? 0 : prev.cad;
+}
+
+// Cycling Power Measurement (0x2A63)
+function parseCyclingPower(dv) {
+  const r = {};
+  try {
+    const f = dv.getUint16(0, true);
+    let o = 2;
+    r.power = dv.getInt16(o, true); o += 2;
+    if (f & 0x01) o += 1;          // pedal power balance
+    if (f & 0x04) o += 2;          // accumulated torque
+    if (f & 0x10) o += 6;          // wheel revolution data
+    if (f & 0x20) {
+      const c = crankCadence('cps', dv.getUint16(o, true), dv.getUint16(o + 2, true));
+      if (c !== null) r.cadence = c;
+    }
+  } catch (e) { /* 忽略不完整封包 */ }
+  return r;
+}
+
+// CSC Measurement (0x2A5B)
+const WHEEL_M = 2.096;
+const wheelState = {};
+function parseCsc(dv) {
+  const r = {};
+  try {
+    const f = dv.getUint8(0);
+    let o = 1;
+    if (f & 0x01) {
+      const revs = dv.getUint32(o, true), t = dv.getUint16(o + 4, true);
+      o += 6;
+      if (wheelState.t !== undefined) {
+        const dt = ((t - wheelState.t) & 0xffff) / 1024;
+        const dr = revs - wheelState.revs;
+        if (dt > 0 && dr >= 0) r.speed = Math.round(dr * WHEEL_M / dt * 3.6 * 10) / 10;
+      }
+      wheelState.revs = revs; wheelState.t = t;
+    }
+    if (f & 0x02) {
+      const c = crankCadence('csc', dv.getUint16(o, true), dv.getUint16(o + 2, true));
+      if (c !== null) r.cadence = c;
+    }
+  } catch (e) { /* 忽略不完整封包 */ }
+  return r;
+}
+
+// Heart Rate Measurement (0x2A37)
+function parseHr(dv) {
+  try {
+    const f = dv.getUint8(0);
+    return { hr: (f & 0x01) ? dv.getUint16(1, true) : dv.getUint8(1) };
+  } catch (e) { return {}; }
+}
+
+// FTMS Feature (0x2ACC)
+function describeFtmsFeatures(dv) {
+  const f = dv.getUint32(0, true), t = dv.byteLength >= 8 ? dv.getUint32(4, true) : 0;
+  const has = [];
+  if (f & (1 << 1)) has.push('踏頻');
+  if (f & (1 << 2)) has.push('距離');
+  if (f & (1 << 7)) has.push('阻力段數');
+  if (f & (1 << 9)) has.push('卡路里');
+  if (f & (1 << 10)) has.push('心率');
+  if (f & (1 << 14)) has.push('功率');
+  const ctrl = [];
+  if (t & (1 << 2)) ctrl.push('設定阻力');
+  if (t & (1 << 3)) ctrl.push('設定功率(ERG)');
+  if (t & (1 << 13)) ctrl.push('模擬坡度(SIM)');
+  return { data: has.join('、') || '（未標示）', control: ctrl.join('、') || '不支援' };
+}
+
+// ---------- 連線 ----------
+let device = null;
+let connected = false;
+let primarySource = null;           // 'ftms' | 'cps' | 'csc'
+let reconnectTimer = null;
+let wakeLock = null;
+const live = { power: null, cadence: null, speed: null, resistance: null, hr: null, distance: null, kcal: null, at: 0 };
+let diag = {};
+const rawLines = [];
+
+function setStatus(msg, isErr) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('err', !!isErr);
+}
+function logRaw(label, dv) {
+  const t = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+  rawLines.unshift(t + '  ' + label + '  ' + hex(dv));
+  if (rawLines.length > 40) rawLines.length = 40;
+  if (document.getElementById('diagBox').open) document.getElementById('rawlog').textContent = rawLines.join('\n');
+}
+
+function checkSupport() {
+  const box = document.getElementById('unsupported');
+  let msg = '';
+  if (!window.isSecureContext) msg = '這個網址不是 https，瀏覽器不允許使用藍牙。請改用 https 網址開啟（見說明）。';
+  else if (!navigator.bluetooth) msg = '這個瀏覽器不支援 Web Bluetooth。請用 Android 手機上的 Chrome 開啟。';
+  box.textContent = msg;
+  box.classList.toggle('hidden', !msg);
+  return !msg;
+}
+
+async function connect(scanAll) {
+  if (!checkSupport()) return;
+  const optionalServices = Object.values(SVC).concat(VENDOR_SVCS);
+  const opts = scanAll
+    ? { acceptAllDevices: true, optionalServices }
+    : { filters: [{ services: [SVC.FTMS] }, { services: [SVC.CPS] }, { services: [SVC.CSC] }], optionalServices };
+  try {
+    setStatus('請在跳出的清單選擇飛輪（要邊踩邊選，錶頭沒電就搜不到）…');
+    const d = await navigator.bluetooth.requestDevice(opts);
+    if (device && device !== d) disconnect();
+    device = d;
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    await setupGatt();
+  } catch (e) {
+    if (e.name === 'NotFoundError') setStatus(scanAll ? '沒有選擇裝置。' : '沒有選擇裝置。如果清單裡找不到飛輪，試試「診斷：列出所有裝置」。');
+    else if (e.name === 'SecurityError') setStatus('瀏覽器擋住了藍牙（' + e.message + '）。請直接用 Chrome 開啟這個網頁，不要嵌在其他頁面裡。', true);
+    else setStatus('連線失敗：' + e.message, true);
+  }
+}
+
+async function setupGatt() {
+  setStatus('連線中…');
+  const server = await device.gatt.connect();
+  connected = true;
+  primarySource = null;
+  diag = { name: device.name || '（未命名）', services: [], ftms: null };
+  const services = await server.getPrimaryServices().catch(() => []);
+  // FTMS 優先處理，其次功率、踏頻
+  const rank = s => ({ [SVC.FTMS]: 0, [SVC.CPS]: 1, [SVC.CSC]: 2 })[short16(s.uuid)] ?? 9;
+  services.sort((a, b) => rank(a) - rank(b));
+
+  for (const s of services) {
+    const id = short16(s.uuid);
+    diag.services.push(id !== null ? (SVC_NAMES[id] || '0x' + id.toString(16).toUpperCase()) + (SVC_NAMES[id] ? ' (0x' + id.toString(16).toUpperCase() + ')' : '') : s.uuid);
+    try {
+      const chars = await s.getCharacteristics();
+      for (const c of chars) await setupChar(id, c);
+    } catch (e) {
+      diag.services[diag.services.length - 1] += '（讀取失敗：' + e.message + '）';
+    }
+  }
+
+  if (!primarySource) {
+    setStatus('已連上「' + diag.name + '」，但找不到標準的騎乘數據服務。這台車可能用私有協定，請打開下方「診斷資訊」截圖給我。', true);
+  } else {
+    const label = { ftms: 'FTMS', cps: '功率服務', csc: '踏頻服務' }[primarySource];
+    setStatus('已連上「' + diag.name + '」，使用 ' + label + ' 讀取數據。開始踩就會自動計時。');
+  }
+  requestWakeLock();
+  renderDiag();
+  renderConn();
+}
+
+async function setupChar(svcId, c) {
+  const cid = short16(c.uuid);
+  const p = c.properties;
+  const canNotify = p.notify || p.indicate;
+
+  if (svcId === SVC.FTMS) {
+    if (cid === 0x2acc && p.read) {
+      const dv = await c.readValue();
+      diag.ftms = describeFtmsFeatures(dv);
+    } else if (cid === 0x2ad6 && p.read) {
+      const dv = await c.readValue();
+      diag.resRange = dv.getInt16(0, true) / 10 + ' ～ ' + dv.getInt16(2, true) / 10;
+    } else if (cid === 0x2ad9) {
+      diag.controlPoint = true;
+    } else if (cid === 0x2ad2 && canNotify) {
+      c.addEventListener('characteristicvaluechanged', e => {
+        logRaw('FTMS', e.target.value);
+        applyData(parseIndoorBike(e.target.value), 'ftms');
+      });
+      await c.startNotifications();
+      if (!primarySource) primarySource = 'ftms';
+    }
+    return;
+  }
+  if (svcId === SVC.CPS && cid === 0x2a63 && canNotify) {
+    c.addEventListener('characteristicvaluechanged', e => {
+      logRaw('CPS', e.target.value);
+      applyData(parseCyclingPower(e.target.value), 'cps');
+    });
+    await c.startNotifications();
+    if (!primarySource) primarySource = 'cps';
+    return;
+  }
+  if (svcId === SVC.CSC && cid === 0x2a5b && canNotify) {
+    c.addEventListener('characteristicvaluechanged', e => {
+      logRaw('CSC', e.target.value);
+      applyData(parseCsc(e.target.value), 'csc');
+    });
+    await c.startNotifications();
+    if (!primarySource) primarySource = 'csc';
+    return;
+  }
+  if (svcId === SVC.HRS && cid === 0x2a37 && canNotify) {
+    c.addEventListener('characteristicvaluechanged', e => applyData(parseHr(e.target.value), 'hr'));
+    await c.startNotifications();
+    return;
+  }
+  if (svcId === SVC.DIS && p.read && (cid === 0x2a29 || cid === 0x2a24 || cid === 0x2a26)) {
+    const dv = await c.readValue();
+    const key = { 0x2a29: 'maker', 0x2a24: 'model', 0x2a26: 'firmware' }[cid];
+    diag[key] = new TextDecoder().decode(dv).replace(/\0/g, '').trim();
+    return;
+  }
+  if (svcId === SVC.BAT || svcId === SVC.DIS) return;
+  // 私有服務：列出特徵並訂閱，原始封包寫進診斷紀錄
+  (diag.vendorChars = diag.vendorChars || []).push(c.uuid + ' [' + ['read', 'write', 'writeWithoutResponse', 'notify', 'indicate'].filter(k => p[k]).join(',') + ']');
+  if (canNotify) {
+    c.addEventListener('characteristicvaluechanged', e => logRaw(c.uuid.slice(4, 8), e.target.value));
+    await c.startNotifications().catch(() => {});
+  }
+}
+
+function applyData(r, src) {
+  // 有 FTMS 時，其他來源只補心率
+  if (src !== 'hr' && primarySource && src !== primarySource) return;
+  for (const k of Object.keys(r)) live[k] = r[k];
+  live.at = Date.now();
+}
+
+function onDisconnected() {
+  connected = false;
+  renderConn();
+  if (ride) {
+    setStatus('藍牙斷線了（自發電錶頭停踩會斷電），繼續踩會自動重新連線。');
+    scheduleReconnect();
+  } else {
+    setStatus('已斷線。下一位請先踩幾下讓錶頭亮起來，再按「重新連線」。');
+  }
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(async () => {
+    if (connected || !device || !ride) return;
+    try { await setupGatt(); } catch (e) { scheduleReconnect(); }
+  }, 4000);
+}
+
+async function reconnect() {
+  if (!device) return connect(false);
+  try { await setupGatt(); }
+  catch (e) { setStatus('重新連線失敗：' + e.message + '。請確認錶頭有亮，或改按「連線飛輪」重新選擇。', true); }
+}
+
+function disconnect() {
+  clearTimeout(reconnectTimer);
+  if (device && device.gatt.connected) device.gatt.disconnect();
+  connected = false;
+  renderConn();
+}
+
+async function requestWakeLock() {
+  try { if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen'); }
+  catch (e) { /* 拿不到就算了，只是螢幕可能會關 */ }
+  if (wakeLock) wakeLock.addEventListener('release', () => { wakeLock = null; });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && connected) requestWakeLock();
+});
+
+// ---------- 騎乘計時 ----------
+let ride = null;
+
+function startRide() {
+  ride = {
+    id: uid(), memberId: db.current, start: Date.now(), lastMove: Date.now(),
+    active: 0, work: 0, intDist: 0, bikeDist: 0, bikeKcal: 0, lastBikeDist: null, lastBikeKcal: null,
+    pSum: 0, pN: 0, maxP: 0, cSum: 0, cN: 0, sSum: 0, sN: 0, hrSum: 0, hrN: 0, samples: [],
+  };
+}
+
+function rideDistance(r) { return r.bikeDist > 0 ? r.bikeDist : r.intDist; }
+function rideKcal(r) { return r.work > 0 ? r.work / 1000 : r.bikeKcal; }   // 功率×時間(kJ) 約等於消耗大卡
+
+function tick() {
+  const now = Date.now();
+  const fresh = connected && now - live.at < STALE_MS;
+  const moving = fresh && ((live.cadence || 0) > 0 || (live.speed || 0) > 0 || (live.power || 0) > 0);
+
+  if (moving && !ride) {
+    if (db.current) startRide();
+    else setStatus('請先在上面選擇騎乘者，才會開始記錄。', true);
+  }
+
+  if (ride && moving) {
+    const r = ride;
+    r.active += 1;
+    r.lastMove = now;
+    if (live.power != null && live.power >= 0) { r.work += live.power; r.pSum += live.power; r.pN++; r.maxP = Math.max(r.maxP, live.power); }
+    if (live.cadence > 0) { r.cSum += live.cadence; r.cN++; }
+    if (live.speed != null) { r.intDist += live.speed / 3.6; r.sSum += live.speed; r.sN++; }
+    if (live.hr > 0) { r.hrSum += live.hr; r.hrN++; }
+    if (live.distance != null) {
+      const d = live.distance - (r.lastBikeDist ?? live.distance);
+      if (d >= 0 && d < 100) r.bikeDist += d;          // 錶頭歸零或跳動就不累加
+      r.lastBikeDist = live.distance;
+    }
+    if (live.kcal != null) {
+      const k = live.kcal - (r.lastBikeKcal ?? live.kcal);
+      if (k >= 0 && k < 20) r.bikeKcal += k;
+      r.lastBikeKcal = live.kcal;
+    }
+    if (r.active % SAMPLE_EVERY === 0) {
+      r.samples.push([r.active, live.power ?? null, live.cadence ?? null, live.speed ?? null, live.hr || null, Math.round(rideDistance(r))]);
+    }
+  } else if (ride && now - ride.lastMove > IDLE_SEC * 1000) {
+    finishRide(true);
+  }
+  renderLive(fresh);
+}
+
+function finishRide(auto) {
+  if (!ride) return;
+  const r = ride;
+  ride = null;
+  clearTimeout(reconnectTimer);
+  if (r.active < MIN_SAVE_SEC) {
+    setStatus('這趟不到 ' + MIN_SAVE_SEC + ' 秒，沒有存檔。');
+  } else {
+    db.rides.push({
+      id: r.id, memberId: r.memberId, start: r.start, end: r.lastMove, duration: r.active,
+      distance: Math.round(rideDistance(r)), kcal: Math.round(rideKcal(r)),
+      avgPower: r.pN ? Math.round(r.pSum / r.pN) : null, maxPower: r.pN ? r.maxP : null,
+      avgCadence: r.cN ? Math.round(r.cSum / r.cN) : null,
+      avgSpeed: r.sN ? Math.round(r.sSum / r.sN * 10) / 10 : null,
+      avgHr: r.hrN ? Math.round(r.hrSum / r.hrN) : null,
+      samples: r.samples,
+    });
+    if (saveDb()) setStatus((auto ? '停踩超過 ' + IDLE_SEC + ' 秒，' : '') + '已儲存 ' + memberName(r.memberId) + ' 的紀錄（' + fmtDur(r.active) + '）。');
+  }
+  renderHistory();
+  renderLive(false);
+}
+
+// ---------- 畫面 ----------
+const $ = id => document.getElementById(id);
+const fmtDur = s => {
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(ss).padStart(2, '0');
+};
+const fmtDate = ms => new Date(ms).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+
+function renderMembers() {
+  const box = $('members');
+  box.innerHTML = '';
+  if (!db.members.length) {
+    box.innerHTML = '<span class="muted">還沒有家人，先在下面新增。</span>';
+  }
+  for (const m of db.members) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (m.id === db.current ? ' sel' : '');
+    b.textContent = m.name;
+    b.onclick = () => selectMember(m.id);
+    box.appendChild(b);
+  }
+  const f = $('histFilter');
+  const keep = f.value;
+  f.innerHTML = '<option value="__all">全部家人</option>' + db.members.map(m => '<option value="' + m.id + '">' + esc(m.name) + '</option>').join('');
+  f.value = keep && (keep === '__all' || db.members.some(m => m.id === keep)) ? keep : (db.current || '__all');
+}
+
+function selectMember(id) {
+  if (ride && ride.memberId !== id) {
+    if (!confirm(memberName(ride.memberId) + ' 正在騎，要先結束並儲存這趟再換人嗎？')) return;
+    finishRide(false);
+  }
+  db.current = id;
+  saveDb();
+  $('histFilter').value = id;
+  renderMembers();
+  renderHistory();
+  renderLive(false);
+}
+
+function renderConn() {
+  const pill = $('connPill');
+  pill.textContent = connected ? '已連線' : (device ? '已斷線' : '未連線');
+  pill.classList.toggle('on', connected);
+  $('btnReconnect').disabled = !device || connected;
+  $('btnDisconnect').disabled = !connected;
+}
+
+function renderLive(fresh) {
+  const show = (id, v, digits) => { $(id).textContent = v == null ? '—' : (digits ? v.toFixed(digits) : Math.round(v)); };
+  const zeroIfStale = v => (connected && !fresh ? 0 : v);
+  show('vPower', connected ? zeroIfStale(live.power) : null);
+  show('vCad', connected ? zeroIfStale(live.cadence) : null);
+  show('vSpeed', connected ? zeroIfStale(live.speed) : null, 1);
+  show('vRes', connected ? live.resistance : null);
+  show('vHr', connected && live.hr > 0 ? live.hr : null);
+  $('vTime').textContent = ride ? fmtDur(ride.active) : '0:00';
+  $('vDist').textContent = ride ? (rideDistance(ride) / 1000).toFixed(2) : '0.00';
+  $('vKcal').textContent = ride ? Math.round(rideKcal(ride)) : '0';
+  $('rideWho').textContent = ride ? memberName(ride.memberId) : (db.current ? memberName(db.current) : '尚未選擇');
+  let state = '';
+  if (ride) {
+    const idle = Math.floor((Date.now() - ride.lastMove) / 1000);
+    state = idle >= 3 ? '（暫停中，' + (IDLE_SEC - idle) + ' 秒後自動結束）' : '（記錄中）';
+  }
+  $('rideState').textContent = state;
+  $('btnFinish').disabled = !ride;
+  $('btnDiscard').disabled = !ride;
+}
+
+function renderHistory() {
+  const filter = $('histFilter').value || '__all';
+  const rides = db.rides.filter(r => filter === '__all' || r.memberId === filter).sort((a, b) => b.start - a.start);
+  const monday = new Date(); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const week = rides.filter(r => r.start >= monday.getTime());
+  const sum = (arr, k) => arr.reduce((a, r) => a + (r[k] || 0), 0);
+  $('totals').innerHTML =
+    '<span>本週 <b>' + week.length + '</b> 次・<b>' + Math.round(sum(week, 'duration') / 60) + '</b> 分鐘</span>' +
+    '<span>累計 <b>' + rides.length + '</b> 次・<b>' + Math.round(sum(rides, 'duration') / 60) + '</b> 分鐘・<b>' + (sum(rides, 'distance') / 1000).toFixed(1) + '</b> km</span>';
+  const ul = $('hist');
+  ul.innerHTML = rides.length ? '' : '<li class="muted">還沒有紀錄。</li>';
+  for (const r of rides.slice(0, 100)) {
+    const li = document.createElement('li');
+    const bits = [fmtDur(r.duration), (r.distance / 1000).toFixed(2) + ' km', r.kcal + ' kcal'];
+    if (r.avgPower != null) bits.push('平均 ' + r.avgPower + ' W');
+    if (r.avgCadence != null) bits.push(r.avgCadence + ' rpm');
+    if (r.avgHr != null) bits.push('心率 ' + r.avgHr);
+    li.innerHTML = '<div><div class="d">' + esc(fmtDate(r.start)) + (filter === '__all' ? '・' + esc(memberName(r.memberId)) : '') + '</div>' +
+      '<div class="m">' + esc(bits.join('・')) + '</div></div>';
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    const tcx = document.createElement('button');
+    tcx.className = 'small'; tcx.textContent = 'TCX';
+    tcx.onclick = () => download('ride-' + memberName(r.memberId) + '-' + new Date(r.start).toISOString().slice(0, 16).replace(/[:T]/g, '') + '.tcx', toTcx(r), 'application/vnd.garmin.tcx+xml');
+    const del = document.createElement('button');
+    del.className = 'small danger'; del.textContent = '刪除';
+    del.onclick = () => {
+      if (!confirm('刪除 ' + fmtDate(r.start) + ' 這筆紀錄？')) return;
+      db.rides = db.rides.filter(x => x.id !== r.id);
+      saveDb(); renderHistory();
+    };
+    actions.append(tcx, del);
+    li.appendChild(actions);
+    ul.appendChild(li);
+  }
+}
+
+function renderDiag() {
+  const rows = [
+    ['裝置名稱', diag.name],
+    ['廠牌 / 型號', [diag.maker, diag.model].filter(Boolean).join(' / ') || '—'],
+    ['韌體', diag.firmware || '—'],
+    ['找到的服務', (diag.services || []).join('\n') || '—'],
+    ['數據來源', primarySource ? { ftms: 'FTMS（標準，最佳）', cps: 'Cycling Power', csc: 'CSC 踏頻' }[primarySource] : '無標準來源'],
+  ];
+  if (diag.ftms) {
+    rows.push(['FTMS 提供數據', diag.ftms.data]);
+    rows.push(['App 可控制阻力', diag.ftms.control + (diag.controlPoint ? '' : '（沒有控制點）')]);
+  }
+  if (diag.resRange) rows.push(['阻力範圍', diag.resRange]);
+  if (diag.vendorChars) rows.push(['私有特徵', diag.vendorChars.join('\n')]);
+  $('diag').innerHTML = rows.map(([k, v]) => '<div>' + esc(k) + '</div><div style="white-space:pre-wrap">' + esc(v) + '</div>').join('');
+}
+
+// ---------- 匯出 / 匯入 ----------
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function toTcx(r) {
+  const iso = ms => new Date(ms).toISOString();
+  const pts = r.samples.map(([t, p, c, s, hr, dist]) =>
+    '<Trackpoint><Time>' + iso(r.start + t * 1000) + '</Time>' +
+    '<DistanceMeters>' + (dist || 0) + '</DistanceMeters>' +
+    (hr ? '<HeartRateBpm><Value>' + Math.round(hr) + '</Value></HeartRateBpm>' : '') +
+    (c != null ? '<Cadence>' + Math.min(254, Math.round(c)) + '</Cadence>' : '') +
+    '<Extensions><ns3:TPX>' + (s != null ? '<ns3:Speed>' + (s / 3.6).toFixed(2) + '</ns3:Speed>' : '') +
+    (p != null ? '<ns3:Watts>' + Math.round(p) + '</ns3:Watts>' : '') + '</ns3:TPX></Extensions></Trackpoint>').join('\n');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">\n' +
+    '<Activities><Activity Sport="Biking"><Id>' + iso(r.start) + '</Id>\n' +
+    '<Lap StartTime="' + iso(r.start) + '"><TotalTimeSeconds>' + r.duration + '</TotalTimeSeconds><DistanceMeters>' + r.distance + '</DistanceMeters>' +
+    '<Calories>' + Math.min(65535, r.kcal) + '</Calories><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod>\n<Track>\n' + pts + '\n</Track></Lap>\n' +
+    '<Notes>家庭飛輪紀錄 - ' + esc(memberName(r.memberId)) + '</Notes></Activity></Activities></TrainingCenterDatabase>\n';
+}
+
+function toCsv() {
+  const head = ['日期', '家人', '時間(分)', '距離(km)', '卡路里', '平均功率W', '最大功率W', '平均踏頻rpm', '平均速度km/h', '平均心率'];
+  const q = v => (v == null ? '' : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v);
+  const lines = db.rides.slice().sort((a, b) => a.start - b.start).map(r => [
+    new Date(r.start).toLocaleString('zh-TW', { hour12: false }), memberName(r.memberId), (r.duration / 60).toFixed(1),
+    (r.distance / 1000).toFixed(2), r.kcal, r.avgPower, r.maxPower, r.avgCadence, r.avgSpeed, r.avgHr,
+  ].map(q).join(','));
+  return '﻿' + [head.join(',')].concat(lines).join('\n');
+}
+
+function importJson(text) {
+  const d = JSON.parse(text);
+  if (!d || !Array.isArray(d.members) || !Array.isArray(d.rides)) throw new Error('檔案格式不對');
+  let addM = 0, addR = 0;
+  for (const m of d.members) if (m && m.id && !db.members.some(x => x.id === m.id)) { db.members.push({ id: m.id, name: String(m.name).slice(0, 20) }); addM++; }
+  for (const r of d.rides) if (r && r.id && !db.rides.some(x => x.id === r.id)) { db.rides.push(r); addR++; }
+  if (!db.current && db.members.length) db.current = db.members[0].id;
+  saveDb();
+  return '匯入完成：新增 ' + addM + ' 位家人、' + addR + ' 筆紀錄。';
+}
+
+// ---------- 事件 ----------
+$('addMember').onclick = () => {
+  const name = $('newName').value.trim();
+  if (!name) return;
+  if (db.members.some(m => m.name === name)) { alert('已經有「' + name + '」了'); return; }
+  const m = { id: uid(), name };
+  db.members.push(m);
+  $('newName').value = '';
+  selectMember(m.id);
+};
+$('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('addMember').click(); });
+$('btnConnect').onclick = () => connect(false);
+$('btnScanAll').onclick = () => { $('diagBox').open = true; connect(true); };
+$('btnReconnect').onclick = reconnect;
+$('btnDisconnect').onclick = () => { if (ride) finishRide(false); disconnect(); setStatus('已中斷，飛輪可以給其他手機連線了。'); };
+$('btnFinish').onclick = () => { finishRide(false); disconnect(); setStatus($('status').textContent + ' 已放開飛輪，下一位可以連線了。'); };
+$('btnDiscard').onclick = () => {
+  if (!ride || !confirm('放棄這趟，不儲存？')) return;
+  ride = null; clearTimeout(reconnectTimer); setStatus('已放棄這趟。'); renderLive(false);
+};
+$('histFilter').onchange = renderHistory;
+$('btnExportJson').onclick = () => download('bike-logger-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(db), 'application/json');
+$('btnExportCsv').onclick = () => download('bike-logger-' + new Date().toISOString().slice(0, 10) + '.csv', toCsv(), 'text/csv');
+$('importFile').onchange = async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try { alert(importJson(await file.text())); } catch (err) { alert('匯入失敗：' + err.message); }
+  e.target.value = '';
+  renderMembers(); renderHistory(); renderLive(false);
+};
+$('btnDelMember').onclick = () => {
+  if (!db.current) return;
+  const n = db.rides.filter(r => r.memberId === db.current).length;
+  if (!confirm('刪除「' + memberName(db.current) + '」和他的 ' + n + ' 筆紀錄？建議先匯出備份。')) return;
+  if (ride && ride.memberId === db.current) ride = null;
+  db.rides = db.rides.filter(r => r.memberId !== db.current);
+  db.members = db.members.filter(m => m.id !== db.current);
+  db.current = db.members.length ? db.members[0].id : null;
+  saveDb(); renderMembers(); renderHistory(); renderLive(false);
+};
+$('diagBox').addEventListener('toggle', () => {
+  if ($('diagBox').open) $('rawlog').textContent = rawLines.join('\n') || '（連線後顯示原始封包）';
+});
+
+checkSupport();
+renderMembers();
+renderHistory();
+renderConn();
+renderLive(false);
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
