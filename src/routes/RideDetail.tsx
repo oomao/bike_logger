@@ -89,7 +89,8 @@ export default function RideDetail() {
   return (
     <div className="space-y-3">
       <section className="card">
-        <Link to="/history" className="text-sm text-brand dark:text-brand-light">‹ 紀錄</Link>
+        {/* 回上一頁，回到紀錄時還停在原本選的那一天 */}
+        <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/history'))} className="text-sm text-brand dark:text-brand-light">‹ 返回</button>
         <h2 className="mt-1 text-lg font-bold">{fmtDate(ride.start)}</h2>
         <p className="muted">
           {memberName(ride.memberId)}・{new Date(ride.start).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })}–
