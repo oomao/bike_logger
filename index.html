@@ -478,7 +478,11 @@ function applyData(r, src) {
   if (src !== 'hr' && primarySource && src !== primarySource) return;
   for (const k of Object.keys(r)) live[k] = r[k];
   live.at = Date.now();
+  if (r.hr > 0) live.hrAt = live.at;
 }
+
+// 心率只有手放在感測器上才有，超過 5 秒沒更新就當作沒有
+const currentHr = () => (live.hr > 0 && Date.now() - (live.hrAt || 0) < 5000 ? live.hr : null);
 
 function onDisconnected() {
   connected = false;
@@ -552,7 +556,8 @@ function tick() {
     if (live.power != null && live.power >= 0) { r.work += live.power; r.pSum += live.power; r.pN++; r.maxP = Math.max(r.maxP, live.power); }
     if (live.cadence > 0) { r.cSum += live.cadence; r.cN++; }
     if (live.speed != null) { r.intDist += live.speed / 3.6; r.sSum += live.speed; r.sN++; }
-    if (live.hr > 0) { r.hrSum += live.hr; r.hrN++; }
+    const hr = currentHr();
+    if (hr) { r.hrSum += hr; r.hrN++; }
     if (live.distance != null) {
       const d = live.distance - (r.lastBikeDist ?? live.distance);
       if (d >= 0 && d < 100) r.bikeDist += d;          // 錶頭歸零或跳動就不累加
@@ -564,7 +569,7 @@ function tick() {
       r.lastBikeKcal = live.kcal;
     }
     if (r.active % SAMPLE_EVERY === 0) {
-      r.samples.push([r.active, live.power ?? null, live.cadence ?? null, live.speed ?? null, live.hr || null, Math.round(rideDistance(r))]);
+      r.samples.push([r.active, live.power ?? null, live.cadence ?? null, live.speed ?? null, hr, Math.round(rideDistance(r))]);
     }
   } else if (ride && now - ride.lastMove > IDLE_SEC * 1000) {
     finishRide(true);
@@ -651,7 +656,7 @@ function renderLive(fresh) {
   show('vCad', connected ? zeroIfStale(live.cadence) : null);
   show('vSpeed', connected ? zeroIfStale(live.speed) : null, 1);
   show('vRes', connected ? live.resistance : null);
-  show('vHr', connected && live.hr > 0 ? live.hr : null);
+  show('vHr', connected ? currentHr() : null);
   $('vTime').textContent = ride ? fmtDur(ride.active) : '0:00';
   $('vDist').textContent = ride ? (rideDistance(ride) / 1000).toFixed(2) : '0.00';
   $('vKcal').textContent = ride ? Math.round(rideKcal(ride)) : '0';
