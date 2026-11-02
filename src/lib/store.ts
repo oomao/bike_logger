@@ -47,13 +47,19 @@ let db: Db = empty();
 let useLocalStorage = false; // IndexedDB 打不開時退回 localStorage
 const listeners = new Set<() => void>();
 
+// 整個 App 共用一個資料庫連線，不要每次存檔都開新的
+let idbPromise: Promise<IDBDatabase> | null = null;
 function openIdb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  idbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  }).catch((e) => {
+    idbPromise = null;
+    throw e;
   });
+  return idbPromise;
 }
 
 async function idbGet(): Promise<unknown> {
@@ -163,6 +169,7 @@ export function deleteMember(id: string) {
 }
 
 export function addRide(r: Ride) {
+  if (db.rides.some((x) => x.id === r.id)) return; // 救回的暫存可能已經存過
   commit({ ...db, rides: [...db.rides, r] });
 }
 

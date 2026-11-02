@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useBike } from '../lib/bike';
 
 // BH 免費線上課程，確認後才開到外部瀏覽器
@@ -23,6 +23,11 @@ function Icon({ d }: { d: string }) {
 
 function CourseConfirm({ onClose }: { onClose: () => void }) {
   const bike = useBike();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
       <div

@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import Layout from './components/Layout';
-import { useBike } from './lib/bike';
+import { useRiding } from './lib/bike';
 import Ride from './routes/Ride';
 import History from './routes/History';
 import Family from './routes/Family';
@@ -13,7 +13,8 @@ const Stats = lazy(() => import('./routes/Stats'));
 const RideDetail = lazy(() => import('./routes/RideDetail'));
 
 export default function App() {
-  const bike = useBike();
+  // App 最外層只看「是否騎乘中」，不然每秒的即時數據會讓圖表頁一直重畫
+  const riding = useRiding();
   // PWA 更新檢查：偵測到新版跳 banner、每小時檢查一次、切回 App 時也檢查
   const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const {
@@ -55,7 +56,7 @@ export default function App() {
       </Suspense>
 
       {/* 騎乘中不跳提醒，避免按了重新載入打斷記錄；這趟存檔後才出現 */}
-      {needRefresh && !bike.ride && (
+      {needRefresh && !riding && (
         <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 px-4 pb-3" role="status" aria-live="polite">
           <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl bg-gray-900 px-4 py-3 text-sm text-gray-100 shadow-lg">
             <span className="flex-1">新版本已就緒</span>

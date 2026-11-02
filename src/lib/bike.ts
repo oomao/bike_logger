@@ -288,6 +288,8 @@ function startRide(memberId: string) {
     lastBikeDist: null, lastBikeKcal: null, pSum: 0, pN: 0, maxP: 0, cSum: 0, cN: 0, sSum: 0, sN: 0,
     hrSum: 0, hrN: 0, rSum: 0, rN: 0, samples: [],
   };
+  // 蓋掉「請先選擇騎乘者」之類的舊提示
+  setStatus('開始記錄 ' + memberName(memberId) + ' 的騎乘。');
 }
 
 /**
@@ -347,8 +349,17 @@ function tick() {
 }
 
 // ---------- 進度暫存與救回 ----------
+// 暫存與清除排成一列依序執行：避免「結束後清掉暫存」比「還沒寫完的暫存」先完成，
+// 下次打開 App 又把同一趟救回一次
+let draftQueue: Promise<unknown> = Promise.resolve();
+const queueDraft = (job: () => Promise<unknown>) => {
+  draftQueue = draftQueue.then(job).catch(() => {});
+};
+
 function persistDraft() {
-  if (ride) saveDraft(ride).catch(() => {});
+  if (!ride) return;
+  const snapshot = { ...ride, samples: ride.samples.slice() };
+  queueDraft(() => saveDraft(snapshot));
 }
 
 // 切到其他 App、關閉分頁前都先存一次
@@ -365,6 +376,7 @@ window.addEventListener('pagehide', persistDraft);
 export async function recoverDraft() {
   const d = (await loadDraft().catch(() => null)) as RideState | null;
   if (!d || !d.id || ride) return;
+  if (getDb().rides.some((r) => r.id === d.id)) return queueDraft(clearDraft); // 已經存過了
   if (Date.now() - d.lastMove > IDLE_SEC * 1000) {
     ride = d;
     finishRide(false);
@@ -380,7 +392,7 @@ export function finishRide(auto = false) {
   const r = ride;
   ride = null;
   clearTimeout(reconnectTimer);
-  clearDraft().catch(() => {});
+  queueDraft(clearDraft);
   const duration = Math.round(r.active);
   if (duration < MIN_SAVE_SEC) {
     setStatus('這趟不到 ' + MIN_SAVE_SEC + ' 秒，沒有存檔。');
@@ -412,11 +424,19 @@ export function finishAndRelease() {
 export function discardRide() {
   ride = null;
   clearTimeout(reconnectTimer);
-  clearDraft().catch(() => {});
+  queueDraft(clearDraft);
   setStatus('已放棄這趟。');
 }
 
 export const rideMemberId = () => ride?.memberId ?? null;
+
+/** 只關心「是否騎乘中」的地方用這個，避免每秒更新數字時整個 App 跟著重畫 */
+export function useRiding(): boolean {
+  return useSyncExternalStore(
+    (l) => { listeners.add(l); return () => listeners.delete(l); },
+    () => snapshot.ride != null,
+  );
+}
 
 export function useBike(): BikeSnapshot {
   return useSyncExternalStore(
