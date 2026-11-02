@@ -58,7 +58,13 @@ export default function Help() {
           </ul>
         </section>
       ))}
-      <p className="muted px-1 text-xs">家庭飛輪紀錄・資料只存在你的手機，不會上傳到任何伺服器。</p>
+      <section className="card">
+        <h2 className="font-semibold">更新</h2>
+        <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+          有新版本時，底部會出現「新版本已就緒」，按「重新載入」就會更新。騎乘中不會跳出，存檔後才提醒。
+        </p>
+      </section>
+      <p className="muted px-1 text-xs">家庭飛輪紀錄 v{__APP_VERSION__}・資料只存在你的手機，不會上傳到任何伺服器。</p>
     </div>
   );
 }

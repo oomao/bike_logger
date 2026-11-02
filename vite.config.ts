@@ -8,6 +8,8 @@ export default defineConfig(({ command }) => {
 
   return {
     base: BASE,
+    // 說明頁顯示目前版本，方便確認更新有沒有生效
+    define: { __APP_VERSION__: JSON.stringify(process.env.npm_package_version) },
     plugins: [
       react(),
       VitePWA({
