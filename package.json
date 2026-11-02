@@ -1,7 +1,7 @@
 {
   "name": "bike-logger",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
   "description": "家庭飛輪紀錄 — 用 Web Bluetooth 連 FTMS 飛輪，依家人分開存騎乘紀錄",
   "scripts": {
