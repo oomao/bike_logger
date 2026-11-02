@@ -8,8 +8,8 @@ import { fmtDur } from './format';
 
 const IDLE_SEC = 60;      // 停踩多久自動結束
 const MIN_SAVE_SEC = 60;  // 少於這個秒數不存
-const SAMPLE_EVERY = 5;   // 每幾秒存一個取樣點（給 TCX 用）
-const STALE_MS = 3000;    // 超過這麼久沒收到數據就當作停止
+const MAX_GAP_SEC = 70;   // App 在背景時計時器會被降頻，最多補算這麼多秒
+const STALE_MS = 3000;   // 超過這麼久沒收到數據就當作停止
 const HR_STALE_MS = 5000; // 心率只有手放在感測器上才有
 
 const SVC = { FTMS: 0x1826, CPS: 0x1818, CSC: 0x1816, HRS: 0x180d, DIS: 0x180a, BAT: 0x180f };
@@ -35,7 +35,7 @@ export interface Diag {
 }
 
 interface RideState {
-  id: string; memberId: string; start: number; lastMove: number; active: number;
+  id: string; memberId: string; start: number; lastMove: number; lastTick: number; active: number;
   work: number; intDist: number; bikeDist: number; bikeKcal: number;
   lastBikeDist: number | null; lastBikeKcal: number | null;
   pSum: number; pN: number; maxP: number; cSum: number; cN: number; sSum: number; sN: number;
@@ -49,7 +49,7 @@ export interface BikeSnapshot {
   hasDevice: boolean;
   status: { msg: string; err: boolean };
   live: { power: number | null; cadence: number | null; speed: number | null; resistance: number | null; hr: number | null };
-  ride: { memberId: string; active: number; distance: number; kcal: number; idleLeft: number | null } | null;
+  ride: { memberId: string; active: number; distance: number; kcal: number; idleLeft: number | null; hrSeconds: number } | null;
   source: Source | null;
   diag: Diag | null;
   raw: string[];
@@ -98,7 +98,8 @@ function build(): BikeSnapshot {
     },
     ride: ride && {
       memberId: ride.memberId,
-      active: ride.active,
+      active: Math.floor(ride.active),
+      hrSeconds: ride.hrN,
       distance: rideDistance(ride),
       kcal: rideKcal(ride),
       idleLeft: now - ride.lastMove >= 3000 ? Math.max(0, IDLE_SEC - Math.floor((now - ride.lastMove) / 1000)) : null,
@@ -281,7 +282,7 @@ document.addEventListener('visibilitychange', () => {
 function startRide(memberId: string) {
   const now = Date.now();
   ride = {
-    id: uid(), memberId, start: now, lastMove: now, active: 0, work: 0, intDist: 0, bikeDist: 0, bikeKcal: 0,
+    id: uid(), memberId, start: now, lastMove: now, lastTick: now, active: 0, work: 0, intDist: 0, bikeDist: 0, bikeKcal: 0,
     lastBikeDist: null, lastBikeKcal: null, pSum: 0, pN: 0, maxP: 0, cSum: 0, cN: 0, sSum: 0, sN: 0,
     hrSum: 0, hrN: 0, rSum: 0, rN: 0, samples: [],
   };
@@ -300,14 +301,18 @@ function tick() {
 
   if (ride && moving) {
     const r = ride;
-    r.active += 1;
+    // 用實際經過的時間累加，App 被切到背景、計時器變慢時也不會少算
+    const dt = Math.min(MAX_GAP_SEC, Math.max(0, (now - r.lastTick) / 1000)) || 1;
+    const prevSec = Math.floor(r.active);
+    r.active += dt;
     r.lastMove = now;
-    if (live.power != null && live.power >= 0) { r.work += live.power; r.pSum += live.power; r.pN++; r.maxP = Math.max(r.maxP, live.power); }
-    if (live.cadence && live.cadence > 0) { r.cSum += live.cadence; r.cN++; }
-    if (live.speed != null) { r.intDist += live.speed / 3.6; r.sSum += live.speed; r.sN++; }
-    if (live.resistance != null) { r.rSum += live.resistance; r.rN++; }
+    r.lastTick = now;
+    if (live.power != null && live.power >= 0) { r.work += live.power * dt; r.pSum += live.power * dt; r.pN += dt; r.maxP = Math.max(r.maxP, live.power); }
+    if (live.cadence && live.cadence > 0) { r.cSum += live.cadence * dt; r.cN += dt; }
+    if (live.speed != null) { r.intDist += (live.speed / 3.6) * dt; r.sSum += live.speed * dt; r.sN += dt; }
+    if (live.resistance != null) { r.rSum += live.resistance * dt; r.rN += dt; }
     const hr = currentHr();
-    if (hr) { r.hrSum += hr; r.hrN++; }
+    if (hr) { r.hrSum += hr * dt; r.hrN += dt; }
     if (live.distance != null) {
       const d = live.distance - (r.lastBikeDist ?? live.distance);
       if (d >= 0 && d < 100) r.bikeDist += d; // 錶頭歸零或跳動就不累加
@@ -318,11 +323,14 @@ function tick() {
       if (k >= 0 && k < 20) r.bikeKcal += k;
       r.lastBikeKcal = live.kcal;
     }
-    if (r.active % SAMPLE_EVERY === 0) {
-      r.samples.push([r.active, live.power ?? null, live.cadence ?? null, live.speed ?? null, hr, Math.round(rideDistance(r)), live.resistance ?? null]);
+    // 每秒一筆取樣，圖表與 TCX 都用它，不浪費任何數據
+    if (Math.floor(r.active) > prevSec) {
+      r.samples.push([Math.floor(r.active), live.power ?? null, live.cadence ?? null, live.speed ?? null, hr, Math.round(rideDistance(r)), live.resistance ?? null]);
     }
   } else if (ride && now - ride.lastMove > IDLE_SEC * 1000) {
     finishRide(true);
+  } else if (ride) {
+    ride.lastTick = now; // 暫停中不累加
   }
   emit();
 }
@@ -332,21 +340,23 @@ export function finishRide(auto = false) {
   const r = ride;
   ride = null;
   clearTimeout(reconnectTimer);
-  if (r.active < MIN_SAVE_SEC) {
+  const duration = Math.round(r.active);
+  if (duration < MIN_SAVE_SEC) {
     setStatus('這趟不到 ' + MIN_SAVE_SEC + ' 秒，沒有存檔。');
     return;
   }
-  const ok = addRide({
-    id: r.id, memberId: r.memberId, start: r.start, end: r.lastMove, duration: r.active,
+  addRide({
+    id: r.id, memberId: r.memberId, start: r.start, end: r.lastMove, duration,
     distance: Math.round(rideDistance(r)), kcal: Math.round(rideKcal(r)),
     avgPower: r.pN ? Math.round(r.pSum / r.pN) : null, maxPower: r.pN ? r.maxP : null,
     avgCadence: r.cN ? Math.round(r.cSum / r.cN) : null,
     avgSpeed: r.sN ? Math.round((r.sSum / r.sN) * 10) / 10 : null,
     avgHr: r.hrN ? Math.round(r.hrSum / r.hrN) : null,
+    hrSeconds: Math.round(r.hrN),
     avgResistance: r.rN ? Math.round((r.rSum / r.rN) * 10) / 10 : null,
     samples: r.samples,
   });
-  if (ok) setStatus((auto ? '停踩超過 ' + IDLE_SEC + ' 秒，' : '') + '已儲存 ' + memberName(r.memberId) + ' 的紀錄（' + fmtDur(r.active) + '）。');
+  setStatus((auto ? '停踩超過 ' + IDLE_SEC + ' 秒，' : '') + '已儲存 ' + memberName(r.memberId) + ' 的紀錄（' + fmtDur(duration) + '）。');
 }
 
 /** 結束這趟並放開藍牙，讓下一支手機可以連 */

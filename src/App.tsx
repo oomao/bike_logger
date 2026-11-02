@@ -1,10 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import Layout from './components/Layout';
 import Ride from './routes/Ride';
 import History from './routes/History';
 import Family from './routes/Family';
+import Help from './routes/Help';
+
+// 圖表頁用到 recharts，拆出去讓騎乘頁打開更快
+const Stats = lazy(() => import('./routes/Stats'));
+const RideDetail = lazy(() => import('./routes/RideDetail'));
 
 export default function App() {
   // PWA 更新檢查：偵測到新版跳 banner、每小時檢查一次、切回 App 時也檢查
@@ -35,12 +40,17 @@ export default function App() {
 
   return (
     <Layout>
+      <Suspense fallback={<p className="muted p-4">載入中…</p>}>
       <Routes>
         <Route path="/" element={<Ride />} />
         <Route path="/history" element={<History />} />
+        <Route path="/ride/:id" element={<RideDetail />} />
+        <Route path="/stats" element={<Stats />} />
         <Route path="/family" element={<Family />} />
+        <Route path="/help" element={<Help />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
 
       {needRefresh && (
         <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 px-4 pb-3" role="status" aria-live="polite">

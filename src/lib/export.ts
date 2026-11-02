@@ -27,15 +27,15 @@ export function tcxName(r: Ride) {
   return 'ride-' + memberName(r.memberId) + '-' + new Date(r.start).toISOString().slice(0, 16).replace(/[:T]/g, '') + '.tcx';
 }
 
-export function toCsv(): string {
-  const head = ['日期', '家人', '時間(分)', '距離(km)', '卡路里', '平均功率W', '最大功率W', '平均踏頻rpm', '平均速度km/h', '平均心率', '平均阻力'];
+export function toCsv(memberId: string | null = null): string {
+  const head = ['日期', '家人', '時間(分)', '距離(km)', '卡路里', '平均功率W', '最大功率W', '平均踏頻rpm', '平均速度km/h', '平均心率', '心率量測秒數', '平均阻力'];
   const q = (v: unknown) => (v == null ? '' : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
   const lines = getDb().rides
-    .slice()
+    .filter((r) => !memberId || r.memberId === memberId)
     .sort((a, b) => a.start - b.start)
     .map((r) => [
       new Date(r.start).toLocaleString('zh-TW', { hour12: false }), memberName(r.memberId), (r.duration / 60).toFixed(1),
-      (r.distance / 1000).toFixed(2), r.kcal, r.avgPower, r.maxPower, r.avgCadence, r.avgSpeed, r.avgHr, r.avgResistance,
+      (r.distance / 1000).toFixed(2), r.kcal, r.avgPower, r.maxPower, r.avgCadence, r.avgSpeed, r.avgHr, r.hrSeconds, r.avgResistance,
     ].map(q).join(','));
   return '﻿' + [head.join(',')].concat(lines).join('\n');
 }

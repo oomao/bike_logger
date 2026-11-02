@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { connect, discardRide, finishAndRelease, finishRide, reconnect, disconnect, rideMemberId, useBike } from '../lib/bike';
 import { memberName, selectMember, useDb } from '../lib/store';
 import { fmtDur } from '../lib/format';
+import BackupReminder from '../components/BackupReminder';
 
 function Tile({ label, value, unit, big }: { label: string; value: string; unit?: string; big?: boolean }) {
   return (
@@ -36,6 +37,8 @@ export default function Ride() {
       {!bike.supported && (
         <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm dark:bg-amber-950/40">{bike.supportMsg}</div>
       )}
+
+      {!ride && <BackupReminder />}
 
       <section className="card">
         <h2 className="mb-2 font-semibold">誰要騎？</h2>

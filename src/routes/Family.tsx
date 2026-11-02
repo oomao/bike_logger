@@ -1,13 +1,21 @@
-import { useState } from 'react';
-import { addMember, deleteMember, getDb, importDb, selectMember, useDb } from '../lib/store';
-import { download } from '../lib/format';
+import { useEffect, useState } from 'react';
+import { addMember, deleteMember, importData, selectMember, unbackedRides, useDb } from '../lib/store';
+import { download, fmtDate } from '../lib/format';
 import { toCsv } from '../lib/export';
+import { backupFileName, canShareFiles, saveBackup } from '../lib/backup';
 import { connect, useBike } from '../lib/bike';
 
 export default function Family() {
   const db = useDb();
   const bike = useBike();
   const [name, setName] = useState('');
+  const [who, setWho] = useState<string>(db.current ?? '__all');
+  const [persisted, setPersisted] = useState<boolean | null>(null);
+  useEffect(() => {
+    navigator.storage?.persisted?.().then(setPersisted).catch(() => {});
+  }, []);
+  const target = who === '__all' || !db.members.some((m) => m.id === who) ? null : who;
+  const share = canShareFiles();
 
   const add = () => {
     if (!name.trim()) return;
@@ -24,14 +32,13 @@ export default function Family() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      alert(importDb(await file.text()));
+      alert(importData(await file.text()));
     } catch (err) {
       alert('匯入失敗：' + (err as Error).message);
     }
     e.target.value = '';
   };
 
-  const today = new Date().toISOString().slice(0, 10);
   const d = bike.diag;
   const diagRows: [string, string][] = d
     ? [
@@ -76,18 +83,39 @@ export default function Family() {
       </section>
 
       <section className="card">
-        <h2 className="mb-2 font-semibold">備份</h2>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn" onClick={() => download('bike-logger-backup-' + today + '.json', JSON.stringify(getDb()), 'application/json')}>
-            匯出備份
-          </button>
-          <label className="btn cursor-pointer">
-            匯入備份
-            <input type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
-          </label>
-          <button className="btn" onClick={() => download('bike-logger-' + today + '.csv', toCsv(), 'text/csv')}>匯出 CSV</button>
+        <h2 className="font-semibold">備份與匯入</h2>
+        <p className="muted mt-1">
+          {db.lastBackup ? '上次備份：' + fmtDate(db.lastBackup) : '還沒備份過'}
+          {unbackedRides(db) > 0 && `・${unbackedRides(db)} 筆新紀錄未備份`}
+        </p>
+
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-sm text-gray-500 dark:text-gray-400">匯出誰</span>
+          <select
+            value={target ?? '__all'}
+            onChange={(e) => setWho(e.target.value)}
+            className="flex-1 rounded-xl border border-gray-200 bg-stone-50 px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+          >
+            {db.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            <option value="__all">這支手機上的全部家人</option>
+          </select>
         </div>
-        <p className="muted mt-2">紀錄只存在這支手機裡，清除瀏覽器資料或解除安裝 App 就會消失，請定期匯出備份。</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">檔名：{backupFileName(target)}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {share && <button className="btn-primary" onClick={() => saveBackup(target, 'share')}>分享到雲端硬碟 / LINE</button>}
+          <button className={share ? 'btn' : 'btn-primary'} onClick={() => saveBackup(target, 'download')}>下載備份檔</button>
+          <button className="btn" onClick={() => download(backupFileName(target, 'csv'), toCsv(target), 'text/csv')}>匯出 CSV（Excel）</button>
+        </div>
+
+        <label className="btn mt-3 w-full cursor-pointer">
+          📂 讀取備份檔（合併進來）
+          <input type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
+        </label>
+        <p className="muted mt-2 text-xs">
+          讀取後紀錄就存在這支手機，之後打開 App 不用再選檔。同名的家人會自動合併，重複的紀錄會略過。
+          {persisted === true && ' 這支手機已允許長期保存資料。'}
+          {persisted === false && ' 瀏覽器還沒允許長期保存，把 App「安裝到主畫面」後通常就會允許。'}
+        </p>
       </section>
 
       <section className="card">
