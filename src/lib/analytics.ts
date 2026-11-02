@@ -170,6 +170,8 @@ export function trends(rides: Ride[], now = Date.now()): Trend[] {
   return [
     mk('每趟平均功率', 'W', (r) => r.avgPower),
     mk('每趟平均踏頻', 'rpm', (r) => r.avgCadence),
+    mk('每趟平均阻力', '段', (r) => r.avgResistance),
+    mk('每趟平均速度', 'km/h', (r) => r.avgSpeed),
     mk('每趟時間', '分', (r) => r.duration / 60),
     mk('每趟做功', 'kJ', kj),
   ];

@@ -395,6 +395,8 @@ export function finishRide(auto = false) {
     avgHr: r.hrN ? Math.round(r.hrSum / r.hrN) : null,
     hrSeconds: Math.round(r.hrN),
     avgResistance: r.rN ? Math.round((r.rSum / r.rN) * 10) / 10 : null,
+    bikeKcal: r.lastBikeKcal != null ? Math.round(r.bikeKcal) : null,
+    device: diag?.model || diag?.name,
     samples: r.samples,
   });
   setStatus((auto ? '停踩超過 ' + IDLE_SEC + ' 秒，' : '') + '已儲存 ' + memberName(r.memberId) + ' 的紀錄（' + fmtDur(duration) + '）。');

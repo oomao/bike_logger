@@ -21,12 +21,12 @@ function downsample(s: ReturnType<typeof series>) {
   };
   const out = [];
   for (let i = 0; i < n; i += step) {
-    out.push({ t: i, min: Math.round((i / 60) * 10) / 10, power: avg(s.power, i), cadence: avg(s.cadence, i), resistance: avg(s.resistance, i), hr: avg(s.hr, i) });
+    out.push({ t: i, min: Math.round((i / 60) * 10) / 10, power: avg(s.power, i), cadence: avg(s.cadence, i), resistance: avg(s.resistance, i), hr: avg(s.hr, i), speed: avg(s.speed, i) });
   }
   return out;
 }
 
-function Mini({ data, k, color, unit, step }: { data: ReturnType<typeof downsample>; k: 'power' | 'cadence' | 'resistance' | 'hr'; color: string; unit: string; step?: boolean }) {
+function Mini({ data, k, color, unit, step }: { data: ReturnType<typeof downsample>; k: 'power' | 'cadence' | 'resistance' | 'hr' | 'speed'; color: string; unit: string; step?: boolean }) {
   return (
     <ResponsiveContainer width="100%" height={110}>
       <LineChart data={data} syncId="ride" margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
@@ -70,15 +70,20 @@ export default function RideDetail() {
   const has = (arr: (number | null)[]) => arr.some((v) => v != null);
   const oldSamples = ride.samples.length > 1 && ride.samples[1][0] - ride.samples[0][0] >= 5;
 
+  const max = (arr: (number | null)[]) => arr.reduce<number | null>((m, v) => (v != null && (m == null || v > m) ? v : m), null);
+  const paused = Math.max(0, Math.round((ride.end - ride.start) / 1000) - ride.duration);
+  const maxCad = max(s.cadence), maxSpeed = max(s.speed), maxRes = max(s.resistance);
   const stats: [string, string][] = [
-    ['時間', fmtDur(ride.duration)],
+    ['踩踏時間', fmtDur(ride.duration)],
+    ['暫停', paused >= 5 ? fmtDur(paused) : '沒有暫停'],
     ['做功', kj(ride) + ' kJ'],
-    ['約消耗', ride.kcal + ' kcal'],
-    ['距離（估算）', (ride.distance / 1000).toFixed(2) + ' km'],
+    ['距離（錶頭估算）', (ride.distance / 1000).toFixed(2) + ' km'],
+    ['卡路里（功率換算）', '約 ' + ride.kcal + ' kcal'],
+    ['卡路里（錶頭）', ride.bikeKcal != null ? ride.bikeKcal + ' kcal' : '—'],
     ['平均 / 最高功率', ride.avgPower != null ? ride.avgPower + ' / ' + ride.maxPower + ' W' : '—'],
-    ['平均踏頻', ride.avgCadence != null ? ride.avgCadence + ' rpm' : '—'],
-    ['平均阻力', ride.avgResistance != null ? '第 ' + ride.avgResistance + ' 段' : '—'],
-    ['平均速度（估算）', ride.avgSpeed != null ? ride.avgSpeed + ' km/h' : '—'],
+    ['平均 / 最高踏頻', ride.avgCadence != null ? ride.avgCadence + ' / ' + (maxCad ?? '—') + ' rpm' : '—'],
+    ['平均 / 最高速度', ride.avgSpeed != null ? ride.avgSpeed + ' / ' + (maxSpeed != null ? maxSpeed.toFixed(1) : '—') + ' km/h' : '—'],
+    ['平均 / 最高阻力', ride.avgResistance != null ? ride.avgResistance + ' / ' + (maxRes ?? '—') + ' 段' : '—'],
   ];
 
   return (
@@ -86,7 +91,11 @@ export default function RideDetail() {
       <section className="card">
         <Link to="/history" className="text-sm text-brand dark:text-brand-light">‹ 紀錄</Link>
         <h2 className="mt-1 text-lg font-bold">{fmtDate(ride.start)}</h2>
-        <p className="muted">{memberName(ride.memberId)}</p>
+        <p className="muted">
+          {memberName(ride.memberId)}・{new Date(ride.start).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })}–
+          {new Date(ride.end).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })}
+          {ride.device && '・' + ride.device}
+        </p>
         {prs.length > 0 && (
           <div className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm dark:bg-amber-950/40">
             🏅 刷新個人紀錄：{prs.map((d) => durLabel(d) + ' ' + bests[d] + ' W').join('、')}
@@ -108,6 +117,7 @@ export default function RideDetail() {
         {has(s.power) && (<><div className="text-xs font-medium text-teal-700 dark:text-teal-400">功率 W</div><Mini data={data} k="power" color="#0f766e" unit="W" /></>)}
         {has(s.cadence) && (<><div className="text-xs font-medium text-sky-600">踏頻 rpm</div><Mini data={data} k="cadence" color="#0284c7" unit="rpm" /></>)}
         {has(s.resistance) && (<><div className="text-xs font-medium text-amber-600">阻力段數</div><Mini data={data} k="resistance" color="#d97706" unit="段" step /></>)}
+        {has(s.speed) && (<><div className="text-xs font-medium text-violet-600">速度 km/h（錶頭估算）</div><Mini data={data} k="speed" color="#7c3aed" unit="km/h" /></>)}
       </section>
 
       <section className="card">

@@ -23,6 +23,8 @@ export interface Ride {
   avgHr: number | null;      // 只算有量到心率的時間
   hrSeconds?: number;        // 有量到心率的秒數
   avgResistance?: number | null;
+  bikeKcal?: number | null;  // 錶頭自己算的卡路里（跟功率換算的並列參考）
+  device?: string;           // 飛輪型號，例如 FIT3104B3
   samples: Sample[];
 }
 
