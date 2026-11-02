@@ -73,6 +73,21 @@ async function idbPut(value: Db): Promise<void> {
   });
 }
 
+// 騎到一半的進度，App 被系統關掉時用來救回
+const DRAFT_KEY = 'draft';
+
+async function idbRaw(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<unknown> {
+  const idb = await openIdb();
+  return new Promise((resolve, reject) => {
+    const req = fn(idb.transaction(IDB_STORE, mode).objectStore(IDB_STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+export const saveDraft = (value: object) => idbRaw('readwrite', (s) => s.put(value, DRAFT_KEY));
+export const loadDraft = () => idbRaw('readonly', (s) => s.get(DRAFT_KEY));
+export const clearDraft = () => idbRaw('readwrite', (s) => s.delete(DRAFT_KEY));
+
 function loadLegacy(): Db | null {
   try {
     const d = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');

@@ -35,7 +35,7 @@ function CourseConfirm({ onClose }: { onClose: () => void }) {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">會在瀏覽器開啟 BH 國際健身課程的飛輪課程頁，用你的 BH 帳號觀看。</p>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
           {bike.ride
-            ? '這趟還在記錄中。建議用手機的「分割畫面」把課程和這個 App 放在一起，記錄最不會中斷。'
+            ? '這趟還在記錄中，切過去後 App 會在背景繼續記錄並自動存檔。想最保險就用「分割畫面」把課程和這個 App 放在一起。'
             : bike.connected
               ? '飛輪已連線，開始踩就會記錄。建議用「分割畫面」同時顯示課程和這個 App。'
               : '飛輪還沒連線，這次騎乘不會被記錄。想記錄的話先到「騎乘」頁連線。'}

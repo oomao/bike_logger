@@ -3,12 +3,13 @@ import { useSyncExternalStore } from 'react';
 import {
   describeFtmsFeatures, hex, parseCsc, parseCyclingPower, parseHr, parseIndoorBike, short16, type Reading,
 } from './ftms';
-import { addRide, getDb, memberName, uid, type Sample } from './store';
+import { addRide, clearDraft, getDb, loadDraft, memberName, saveDraft, uid, type Sample } from './store';
 import { fmtDur } from './format';
 
 const IDLE_SEC = 60;      // 停踩多久自動結束
 const MIN_SAVE_SEC = 60;  // 少於這個秒數不存
-const MAX_GAP_SEC = 70;   // App 在背景時計時器會被降頻，最多補算這麼多秒
+const MAX_GAP_SEC = 5;    // 兩包數據間隔超過這麼久（斷訊）就不補算
+const DRAFT_EVERY_SEC = 30; // 每騎多久暫存一次進度
 const STALE_MS = 3000;   // 超過這麼久沒收到數據就當作停止
 const HR_STALE_MS = 5000; // 心率只有手放在感測器上才有
 
@@ -230,6 +231,7 @@ function applyData(r: Reading, src: Source | 'hr') {
   Object.assign(live, r);
   live.at = Date.now();
   if (r.hr && r.hr > 0) live.hrAt = live.at;
+  if (src !== 'hr') accumulate(live.at); // 心率帶的封包不推進騎乘時間
 }
 
 function onDisconnected() {
@@ -282,31 +284,37 @@ document.addEventListener('visibilitychange', () => {
 function startRide(memberId: string) {
   const now = Date.now();
   ride = {
-    id: uid(), memberId, start: now, lastMove: now, lastTick: now, active: 0, work: 0, intDist: 0, bikeDist: 0, bikeKcal: 0,
+    id: uid(), memberId, start: now, lastMove: now, lastTick: 0, active: 0, work: 0, intDist: 0, bikeDist: 0, bikeKcal: 0,
     lastBikeDist: null, lastBikeKcal: null, pSum: 0, pN: 0, maxP: 0, cSum: 0, cN: 0, sSum: 0, sN: 0,
     hrSum: 0, hrN: 0, rSum: 0, rN: 0, samples: [],
   };
 }
 
-function tick() {
-  const now = Date.now();
-  const fresh = connected && now - live.at < STALE_MS;
-  const moving = fresh && ((live.cadence ?? 0) > 0 || (live.speed ?? 0) > 0 || (live.power ?? 0) > 0);
+/**
+ * 每收到一包飛輪數據就累加一次（約每秒一包）。
+ * 不靠 setInterval：App 切到背景時計時器會被瀏覽器放慢，但藍牙通知照樣會進來。
+ */
+function accumulate(now: number) {
+  const moving = (live.cadence ?? 0) > 0 || (live.speed ?? 0) > 0 || (live.power ?? 0) > 0;
 
   if (moving && !ride) {
     const current = getDb().current;
     if (current) startRide(current);
     else if (!status.err) setStatus('請先在「家人」頁選擇騎乘者，才會開始記錄。', true);
   }
+  if (!ride) return;
 
-  if (ride && moving) {
-    const r = ride;
-    // 用實際經過的時間累加，App 被切到背景、計時器變慢時也不會少算
-    const dt = Math.min(MAX_GAP_SEC, Math.max(0, (now - r.lastTick) / 1000)) || 1;
+  const r = ride;
+  // 兩包之間的實際間隔；第一包算 1 秒，斷訊太久的空檔不補
+  const dt = r.lastTick === 0 ? 1 : Math.min(MAX_GAP_SEC, Math.max(0, (now - r.lastTick) / 1000));
+  r.lastTick = now;
+  if (!moving) return;
+
+  {
+    // 只在有踩的時候累加
     const prevSec = Math.floor(r.active);
     r.active += dt;
     r.lastMove = now;
-    r.lastTick = now;
     if (live.power != null && live.power >= 0) { r.work += live.power * dt; r.pSum += live.power * dt; r.pN += dt; r.maxP = Math.max(r.maxP, live.power); }
     if (live.cadence && live.cadence > 0) { r.cSum += live.cadence * dt; r.cN += dt; }
     if (live.speed != null) { r.intDist += (live.speed / 3.6) * dt; r.sSum += live.speed * dt; r.sN += dt; }
@@ -327,12 +335,44 @@ function tick() {
     if (Math.floor(r.active) > prevSec) {
       r.samples.push([Math.floor(r.active), live.power ?? null, live.cadence ?? null, live.speed ?? null, hr, Math.round(rideDistance(r)), live.resistance ?? null]);
     }
-  } else if (ride && now - ride.lastMove > IDLE_SEC * 1000) {
-    finishRide(true);
-  } else if (ride) {
-    ride.lastTick = now; // 暫停中不累加
+    // 每騎 30 秒暫存一次進度，App 被系統關掉也救得回來
+    if (Math.floor(r.active / DRAFT_EVERY_SEC) > Math.floor(prevSec / DRAFT_EVERY_SEC)) persistDraft();
   }
+}
+
+/** 每秒更新畫面、檢查是否停踩太久；在背景被放慢也沒關係，只影響自動結束的時間點 */
+function tick() {
+  if (ride && Date.now() - ride.lastMove > IDLE_SEC * 1000) finishRide(true);
   emit();
+}
+
+// ---------- 進度暫存與救回 ----------
+function persistDraft() {
+  if (ride) saveDraft(ride).catch(() => {});
+}
+
+// 切到其他 App、關閉分頁前都先存一次
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persistDraft();
+  else tick(); // 回到前景時立刻檢查是否該自動結束
+});
+window.addEventListener('pagehide', persistDraft);
+
+/**
+ * App 啟動時呼叫：上次騎到一半 App 被關掉的話，把那趟救回來。
+ * 停踩超過 60 秒的直接存成紀錄；剛剛還在騎的就接著記。
+ */
+export async function recoverDraft() {
+  const d = (await loadDraft().catch(() => null)) as RideState | null;
+  if (!d || !d.id || ride) return;
+  if (Date.now() - d.lastMove > IDLE_SEC * 1000) {
+    ride = d;
+    finishRide(false);
+    if (Math.round(d.active) >= MIN_SAVE_SEC) setStatus('上次騎乘 App 被關掉了，已自動救回並儲存（' + fmtDur(Math.round(d.active)) + '）。');
+  } else {
+    ride = { ...d, lastTick: Date.now() };
+    setStatus('已接續剛剛的騎乘，請重新連線飛輪。');
+  }
 }
 
 export function finishRide(auto = false) {
@@ -340,6 +380,7 @@ export function finishRide(auto = false) {
   const r = ride;
   ride = null;
   clearTimeout(reconnectTimer);
+  clearDraft().catch(() => {});
   const duration = Math.round(r.active);
   if (duration < MIN_SAVE_SEC) {
     setStatus('這趟不到 ' + MIN_SAVE_SEC + ' 秒，沒有存檔。');
@@ -369,6 +410,7 @@ export function finishAndRelease() {
 export function discardRide() {
   ride = null;
   clearTimeout(reconnectTimer);
+  clearDraft().catch(() => {});
   setStatus('已放棄這趟。');
 }
 
@@ -382,3 +424,8 @@ export function useBike(): BikeSnapshot {
 }
 
 setInterval(tick, 1000);
+
+// 開發時可在 console 模擬飛輪封包：__bike.feed({ power: 80, cadence: 70 })
+if (import.meta.env.DEV) {
+  (window as unknown as { __bike: object }).__bike = { feed: (r: Reading) => applyData(r, 'ftms'), state: () => ride };
+}
