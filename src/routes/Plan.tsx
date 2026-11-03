@@ -73,6 +73,19 @@ export default function Plan() {
 
   return (
     <div className="space-y-3">
+      {/* BH 課程：原本底部的按鈕併到這裡，放最上面一行就好 */}
+      <button
+        onClick={() => setAskCourse(true)}
+        className="flex w-full items-center gap-3 rounded-2xl border border-brand/30 bg-brand/10 px-4 py-2.5 text-left dark:border-brand-light/30 dark:bg-brand-light/10"
+      >
+        <span className="text-xl" aria-hidden>📺</span>
+        <span className="flex-1">
+          <span className="block font-semibold">BH 線上飛輪課程</span>
+          <span className="block text-xs text-gray-500 dark:text-gray-400">跟著課程騎，App 照樣在背景記錄</span>
+        </span>
+        <span className="text-sm font-semibold text-brand dark:text-brand-light">前往 ↗</span>
+      </button>
+
       <MemberPicker />
 
       {!m.safetyAck && (
@@ -149,15 +162,6 @@ export default function Plan() {
             )}
           </>
         )}
-      </section>
-
-      {/* BH 課程：原本底部的按鈕併到這裡 */}
-      <section className="card flex items-center gap-3">
-        <div className="flex-1">
-          <h2 className="font-semibold">不想自己安排？</h2>
-          <p className="muted">跟著 BH 線上飛輪課程騎，App 一樣會在背景記錄。</p>
-        </div>
-        <button className="btn" onClick={() => setAskCourse(true)}>BH 課程 ↗</button>
       </section>
 
       {/* 4. 最近狀態（Apple Training Load） */}
