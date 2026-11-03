@@ -3,6 +3,8 @@ import { connect, discardRide, finishAndRelease, finishRide, reconnect, disconne
 import { memberName, selectMember, useDb } from '../lib/store';
 import { fmtDur } from '../lib/format';
 import BackupReminder from '../components/BackupReminder';
+import TodayCard from '../components/TodayCard';
+import { ageOf, hrMax } from '../lib/suggest';
 
 function Tile({ label, value, unit, big }: { label: string; value: string; unit?: string; big?: boolean }) {
   return (
@@ -22,6 +24,9 @@ export default function Ride() {
   const bike = useBike();
   const db = useDb();
   const { live, ride } = bike;
+  const riderId = ride?.memberId ?? db.current;
+  const age = ageOf(db.members.find((m) => m.id === riderId));
+  const hrHigh = age != null && live.hr != null && live.hr > hrMax(age) * 0.9;
 
   const pick = (id: string) => {
     const riding = rideMemberId();
@@ -57,6 +62,8 @@ export default function Ride() {
         )}
       </section>
 
+      {!ride && <TodayCard />}
+
       <section className="card">
         <div className="flex flex-wrap gap-2">
           {bike.connected ? (
@@ -84,6 +91,12 @@ export default function Ride() {
           <Tile label="卡路里" value={ride ? String(Math.round(ride.kcal)) : '0'} unit="kcal" />
           <Tile label="心率" value={num(live.hr)} unit="bpm" />
         </div>
+
+        {hrHigh && (
+          <p className="mt-2 rounded-xl border-l-4 border-red-500 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+            心率 {live.hr}，超過你最大心率的 90%，放慢一點。
+          </p>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm">

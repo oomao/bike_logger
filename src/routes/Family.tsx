@@ -1,14 +1,49 @@
 import { useEffect, useState } from 'react';
-import { addMember, deleteMember, importData, selectMember, unbackedRides, useDb } from '../lib/store';
+import { addMember, deleteMember, importData, latestWeight, selectMember, setBody, unbackedRides, useDb, type Member } from '../lib/store';
 import { download, fmtDate } from '../lib/format';
 import { toCsv } from '../lib/export';
 import { backupFileName, canShareFiles, saveBackup } from '../lib/backup';
 import { connect, useBike } from '../lib/bike';
 
+function BodyEditor({ m, onDone }: { m: Member; onDone: () => void }) {
+  const [year, setYear] = useState(m.birthYear ? String(m.birthYear) : '');
+  const [kg, setKg] = useState(String(latestWeight(m) ?? ''));
+  const save = () => {
+    const thisYear = new Date().getFullYear();
+    let y = year.trim() ? Number(year) : null;
+    if (y != null && y < 200) y += 1911; // 填民國年也可以
+    const w = kg.trim() ? Number(kg) : null;
+    if (y != null && !(Number.isInteger(y) && y >= thisYear - 110 && y <= thisYear - 5)) return alert('出生年請填西元或民國年，例如 1960 或 49');
+    if (w != null && !(w >= 20 && w <= 200)) return alert('體重請填 20～200 公斤');
+    setBody(m.id, y, w == null ? null : Math.round(w * 10) / 10);
+    onDone();
+  };
+  return (
+    <div className="w-full rounded-xl bg-stone-100 p-3 dark:bg-gray-800">
+      <div className="flex gap-2">
+        <label className="flex-1 text-xs text-gray-500 dark:text-gray-400">
+          出生年
+          <input className="input mt-1 w-full" inputMode="numeric" placeholder="例如 1960" value={year} onChange={(e) => setYear(e.target.value)} />
+        </label>
+        <label className="flex-1 text-xs text-gray-500 dark:text-gray-400">
+          體重（公斤）
+          <input className="input mt-1 w-full" inputMode="decimal" placeholder="例如 62" value={kg} onChange={(e) => setKg(e.target.value)} />
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">都可以不填。出生年用來調整建議強度和心率提醒，體重用來算 W/kg。只存在這支手機，備份檔會一起帶走。</p>
+      <div className="mt-2 flex gap-2">
+        <button className="btn btn-sm flex-1" onClick={onDone}>取消</button>
+        <button className="btn-primary btn-sm flex-1" onClick={save}>儲存</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Family() {
   const db = useDb();
   const bike = useBike();
   const [name, setName] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
   const [who, setWho] = useState<string>(db.current ?? '__all');
   const [persisted, setPersisted] = useState<boolean | null>(null);
   useEffect(() => {
@@ -59,12 +94,19 @@ export default function Family() {
         <h2 className="mb-2 font-semibold">家人</h2>
         <ul className="divide-y divide-gray-200 dark:divide-gray-800">
           {db.members.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-2 py-2">
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <button className={m.id === db.current ? 'chip-on' : 'chip'} onClick={() => selectMember(m.id)}>
                 {m.name}
               </button>
-              <span className="muted ml-auto">{db.rides.filter((r) => r.memberId === m.id).length} 筆</span>
+              <span className="muted ml-auto text-right">
+                {db.rides.filter((r) => r.memberId === m.id).length} 筆
+                {(m.birthYear || latestWeight(m)) && (
+                  <span className="block text-xs">{[m.birthYear && m.birthYear + ' 年生', latestWeight(m) && latestWeight(m) + ' kg'].filter(Boolean).join('・')}</span>
+                )}
+              </span>
+              <button className="btn btn-sm" onClick={() => setEditing(editing === m.id ? null : m.id)}>身體資料</button>
               <button className="btn-danger btn-sm" onClick={() => remove(m.id, m.name)}>刪除</button>
+              {editing === m.id && <BodyEditor m={m} onDone={() => setEditing(null)} />}
             </li>
           ))}
         </ul>

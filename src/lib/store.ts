@@ -2,7 +2,17 @@
 // 第一次啟動時會把單頁版存在 localStorage 'bikeLogger.v1' 的舊資料搬過來
 import { useSyncExternalStore } from 'react';
 
-export interface Member { id: string; name: string }
+export interface Member {
+  id: string;
+  name: string;
+  // 以下都選填，給「今日建議」用
+  birthYear?: number;
+  weights?: [number, number][]; // [記錄時間, 公斤]，保留歷史才不會改了體重就讓舊的 W/kg 跟著變
+  restDays?: string[];          // 自己按「今天休息」的日子，YYYY-MM-DD
+  safetyAck?: boolean;          // 看過安全提醒了
+}
+
+export const latestWeight = (m: Member) => m.weights?.[m.weights.length - 1]?.[1] ?? null;
 
 // 取樣點：[第幾秒, 功率, 踏頻, 速度, 心率, 累計距離m, 阻力]
 // 0.3 版起每秒一筆；更早的紀錄是每 5 秒一筆
@@ -168,6 +178,27 @@ export function deleteMember(id: string) {
   });
 }
 
+function updateMember(id: string, patch: Partial<Member>) {
+  commit({ ...db, members: db.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) });
+}
+
+/** 體重有變才多記一筆；清空體重就整個拿掉 */
+export function setBody(id: string, birthYear: number | null, weight: number | null) {
+  const m = db.members.find((x) => x.id === id);
+  if (!m) return;
+  let weights = weight == null ? [] : [...(m.weights ?? [])];
+  if (weight != null && latestWeight(m) !== weight) weights = [...weights, [Date.now(), weight]];
+  updateMember(id, { birthYear: birthYear ?? undefined, weights });
+}
+
+export function toggleRestDay(id: string, day: string) {
+  const days = db.members.find((m) => m.id === id)?.restDays ?? [];
+  // 只留最近 60 筆，不讓它無限長大
+  updateMember(id, { restDays: days.includes(day) ? days.filter((d) => d !== day) : [...days, day].slice(-60) });
+}
+
+export const ackSafety = (id: string) => updateMember(id, { safetyAck: true });
+
 export function addRide(r: Ride) {
   if (db.rides.some((x) => x.id === r.id)) return; // 救回的暫存可能已經存過
   commit({ ...db, rides: [...db.rides, r] });
@@ -210,10 +241,17 @@ export function importData(text: string): string {
   for (const m of d.members) {
     if (!m?.id) continue;
     const same = members.find((x) => x.id === m.id) ?? members.find((x) => x.name === m.name);
+    const body = {
+      birthYear: Number.isInteger(m.birthYear) ? m.birthYear : undefined,
+      weights: Array.isArray(m.weights) ? m.weights : undefined,
+    };
     if (same) {
       idMap.set(m.id, same.id); // 同名的家人視為同一人，紀錄合併進去
+      // 這支手機沒填身體資料時，才用備份檔裡的
+      const i = members.indexOf(same);
+      members[i] = { ...same, birthYear: same.birthYear ?? body.birthYear, weights: same.weights?.length ? same.weights : body.weights };
     } else {
-      members.push({ id: m.id, name: String(m.name).slice(0, 20) });
+      members.push({ id: m.id, name: String(m.name).slice(0, 20), ...body });
       idMap.set(m.id, m.id);
       addM++;
     }
