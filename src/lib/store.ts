@@ -10,6 +10,7 @@ export interface Member {
   weights?: [number, number][]; // [記錄時間, 公斤]，保留歷史才不會改了體重就讓舊的 W/kg 跟著變
   restDays?: string[];          // 自己按「今天休息」的日子，YYYY-MM-DD
   safetyAck?: boolean;          // 看過安全提醒了
+  feel?: [string, number];      // 今天騎前自評 [YYYY-MM-DD, 1~4]
 }
 
 export const latestWeight = (m: Member) => m.weights?.[m.weights.length - 1]?.[1] ?? null;
@@ -198,6 +199,7 @@ export function toggleRestDay(id: string, day: string) {
 }
 
 export const ackSafety = (id: string) => updateMember(id, { safetyAck: true });
+export const setFeel = (id: string, day: string, v: number) => updateMember(id, { feel: [day, v] });
 
 export function addRide(r: Ride) {
   if (db.rides.some((x) => x.id === r.id)) return; // 救回的暫存可能已經存過

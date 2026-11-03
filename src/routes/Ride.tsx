@@ -3,7 +3,7 @@ import { connect, discardRide, finishAndRelease, finishRide, reconnect, disconne
 import { memberName, selectMember, useDb } from '../lib/store';
 import { fmtDur } from '../lib/format';
 import BackupReminder from '../components/BackupReminder';
-import TodayCard from '../components/TodayCard';
+import TodayStrip from '../components/TodayStrip';
 import { ageOf, hrMax } from '../lib/suggest';
 
 function Tile({ label, value, unit, big }: { label: string; value: string; unit?: string; big?: boolean }) {
@@ -62,8 +62,6 @@ export default function Ride() {
         )}
       </section>
 
-      {!ride && <TodayCard />}
-
       <section className="card">
         <div className="flex flex-wrap gap-2">
           {bike.connected ? (
@@ -79,6 +77,8 @@ export default function Ride() {
           {bike.status.msg}
         </p>
       </section>
+
+      <TodayStrip />
 
       <section className="card">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

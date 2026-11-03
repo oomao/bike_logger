@@ -7,6 +7,7 @@ import Ride from './routes/Ride';
 import History from './routes/History';
 import Family from './routes/Family';
 import Help from './routes/Help';
+import Plan from './routes/Plan';
 
 // 圖表頁用到 recharts，拆出去讓騎乘頁打開更快
 const Stats = lazy(() => import('./routes/Stats'));
@@ -46,6 +47,7 @@ export default function App() {
       <Suspense fallback={<p className="muted p-4">載入中…</p>}>
       <Routes>
         <Route path="/" element={<Ride />} />
+        <Route path="/plan" element={<Plan />} />
         <Route path="/history" element={<History />} />
         <Route path="/ride/:id" element={<RideDetail />} />
         <Route path="/stats" element={<Stats />} />
