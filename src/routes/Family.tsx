@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { addMember, deleteMember, importData, latestWeight, selectMember, setBody, unbackedRides, useDb, type Member } from '../lib/store';
+import { useLocation } from 'react-router-dom';
+import { addMember, deleteMember, importData, latestWeight, selectMember, setBigText, setBody, unbackedRides, useDb, type Member } from '../lib/store';
+import { bigTextOn } from '../lib/suggest';
 import { download, fmtDate } from '../lib/format';
 import { toCsv } from '../lib/export';
 import { backupFileName, canShareFiles, saveBackup } from '../lib/backup';
 import { connect, useBike } from '../lib/bike';
 
-function BodyEditor({ m, onDone }: { m: Member; onDone: () => void }) {
+function BodyEditor({ m, onDone, onDelete }: { m: Member; onDone: () => void; onDelete: () => void }) {
   const [year, setYear] = useState(m.birthYear ? String(m.birthYear) : '');
   const [kg, setKg] = useState(String(latestWeight(m) ?? ''));
   const save = () => {
@@ -35,6 +37,14 @@ function BodyEditor({ m, onDone }: { m: Member; onDone: () => void }) {
         <button className="btn btn-sm flex-1" onClick={onDone}>取消</button>
         <button className="btn-primary btn-sm flex-1" onClick={save}>儲存</button>
       </div>
+
+      <label className="mt-3 flex items-center gap-2 border-t border-gray-200 pt-3 text-sm dark:border-gray-700">
+        <input type="checkbox" className="h-5 w-5 accent-brand" checked={bigTextOn(m)} onChange={(e) => setBigText(m.id, e.target.checked)} />
+        <span className="flex-1">大字模式<span className="block text-xs text-gray-500 dark:text-gray-400">輪到{m.name}騎時整個 App 字放大；65 歲以上預設開啟</span></span>
+      </label>
+
+      {/* 刪除放最下面，跟常用按鈕隔開，免得手滑 */}
+      <button className="btn-danger btn-sm mt-3 w-full" onClick={onDelete}>刪除{m.name}和他的紀錄</button>
     </div>
   );
 }
@@ -43,7 +53,9 @@ export default function Family() {
   const db = useDb();
   const bike = useBike();
   const [name, setName] = useState('');
-  const [editing, setEditing] = useState<string | null>(null);
+  const loc = useLocation();
+  // 從別頁的「填出生年」連結過來，直接打開那個人的設定
+  const [editing, setEditing] = useState<string | null>((loc.state as { edit?: string } | null)?.edit ?? null);
   const [who, setWho] = useState<string>(db.current ?? '__all');
   const [persisted, setPersisted] = useState<boolean | null>(null);
   useEffect(() => {
@@ -54,8 +66,10 @@ export default function Family() {
 
   const add = () => {
     if (!name.trim()) return;
-    if (!addMember(name)) return alert('已經有「' + name.trim() + '」了');
+    const id = addMember(name);
+    if (!id) return alert('已經有「' + name.trim() + '」了');
     setName('');
+    setEditing(id); // 新增完順手填身體資料（選填）
   };
 
   const remove = (id: string, n: string) => {
@@ -104,9 +118,8 @@ export default function Family() {
                   <span className="block text-xs">{[m.birthYear && m.birthYear + ' 年生', latestWeight(m) && latestWeight(m) + ' kg'].filter(Boolean).join('・')}</span>
                 )}
               </span>
-              <button className="btn btn-sm" onClick={() => setEditing(editing === m.id ? null : m.id)}>身體資料</button>
-              <button className="btn-danger btn-sm" onClick={() => remove(m.id, m.name)}>刪除</button>
-              {editing === m.id && <BodyEditor m={m} onDone={() => setEditing(null)} />}
+              <button className="btn btn-sm" onClick={() => setEditing(editing === m.id ? null : m.id)}>{editing === m.id ? '收起' : '設定'}</button>
+              {editing === m.id && <BodyEditor m={m} onDone={() => setEditing(null)} onDelete={() => remove(m.id, m.name)} />}
             </li>
           ))}
         </ul>

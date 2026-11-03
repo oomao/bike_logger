@@ -15,6 +15,8 @@ const midnight = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
 
 export const ageOf = (m: Member | undefined, now = Date.now()) => (m?.birthYear ? new Date(now).getFullYear() - m.birthYear : null);
 export const hrMax = (age: number) => Math.round(208 - 0.7 * age);
+/** 大字模式：有自己設定就照設定，沒有的話 65 歲以上自動開 */
+export const bigTextOn = (m: Member | undefined) => m?.bigText ?? (ageOf(m) ?? 0) >= 65;
 
 /**
  * 估 FTP（騎一小時撐得住的功率）。家人很少全力騎滿 20 分鐘，只看 20 分會低估，
@@ -103,6 +105,7 @@ export interface Suggestion {
   restToday: boolean;
   feel: number | null;
   elder: boolean;
+  rideCount: number;     // 這個人總共騎了幾趟，新手不排「挑戰」
   ratio: number | null;  // 最近 7 天 ÷ 平常的週量
   last7: number;         // 最近 7 天騎了幾分鐘
   usual: number;         // 近 28 天平均每週幾分鐘
@@ -220,6 +223,7 @@ export function suggest(m: Member, all: Ride[], now = Date.now()): Suggestion {
     restToday: m.restDays?.includes(dayKey(now)) ?? false,
     feel,
     elder,
+    rideCount: rides.length,
     ratio,
     last7: Math.round(a7),
     usual: Math.round(c28),
@@ -244,7 +248,8 @@ export function weekPlan(s: Suggestion, now = Date.now()): { days: PlanDay[]; no
   if (!free.length) return { days: [], note: `本週還差 ${remaining} 分鐘，下週再加油。` };
 
   // 用跟今日選項一樣的時長；從隔天騎開始排，次數不夠補滿才加，天數不夠才連著騎
-  const pattern: Kind[] = s.elder ? ['steady', 'easy', 'hard', 'easy'] : ['steady', 'hard', 'easy', 'steady'];
+  // 騎不到 3 趟先不排「挑戰」，用輕鬆／穩定找感覺
+  const pattern: Kind[] = s.rideCount < 3 ? ['steady', 'easy'] : s.elder ? ['steady', 'easy', 'hard', 'easy'] : ['steady', 'hard', 'easy', 'steady'];
   const len = (k: Kind) => s.options.find((o) => o.kind === k)!.minutes;
   const build = (n: number) => Array.from({ length: n }, (_, i): PlanDay => {
     const date = free[n === 1 ? 0 : Math.round((i * (free.length - 1)) / (n - 1))];

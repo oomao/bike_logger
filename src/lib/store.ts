@@ -11,6 +11,7 @@ export interface Member {
   restDays?: string[];          // 自己按「今天休息」的日子，YYYY-MM-DD
   safetyAck?: boolean;          // 看過安全提醒了
   feel?: [string, number];      // 今天騎前自評 [YYYY-MM-DD, 1~4]
+  bigText?: boolean;            // 大字模式；沒設定時 65 歲以上自動開
 }
 
 export const latestWeight = (m: Member) => m.weights?.[m.weights.length - 1]?.[1] ?? null;
@@ -198,6 +199,7 @@ export function toggleRestDay(id: string, day: string) {
   updateMember(id, { restDays: days.includes(day) ? days.filter((d) => d !== day) : [...days, day].slice(-60) });
 }
 
+export const setBigText = (id: string, v: boolean) => updateMember(id, { bigText: v });
 export const ackSafety = (id: string) => updateMember(id, { safetyAck: true });
 export const setFeel = (id: string, day: string, v: number) => updateMember(id, { feel: [day, v] });
 

@@ -1,7 +1,9 @@
 import { Link, NavLink } from 'react-router-dom';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useBike } from '../lib/bike';
-import { syncWorkout } from '../lib/workout';
+import { cueStep, progress, syncWorkout, useWorkout } from '../lib/workout';
+import { useDb } from '../lib/store';
+import { bigTextOn } from '../lib/suggest';
 
 // BH 課程併進「建議」頁，底部維持 5 格不擁擠
 const NAV = [
@@ -32,18 +34,37 @@ export default function Layout({ children }: { children: ReactNode }) {
     hadRide.current = riding;
   }, [riding]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 課表換段就震動＋嗶一聲；放在 Layout，切到別頁也照樣提醒
+  const workout = useWorkout();
+  const stepIdx = workout && workout.offset != null && bike.ride && workout.memberId === bike.ride.memberId
+    ? progress(workout, bike.ride.active).index : null;
+  const lastIdx = useRef<number | null>(null);
+  useEffect(() => {
+    if (stepIdx != null && lastIdx.current != null && stepIdx > lastIdx.current) cueStep(stepIdx >= workout!.steps.length);
+    lastIdx.current = stepIdx;
+  }, [stepIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 大字模式：調整根字級，整個 App（rem）一起放大
+  const db = useDb();
+  const big = bigTextOn(db.members.find((m) => m.id === (bike.ride?.memberId ?? db.current)));
+  useEffect(() => {
+    document.documentElement.style.fontSize = big ? '118.75%' : '';
+  }, [big]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90">
         <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3">
           <Link to="/" className="text-lg font-bold text-brand dark:text-brand-light">🚴 家庭飛輪紀錄</Link>
-          <span
+          <Link
+            to="/"
+            aria-label="連線狀態，點了到騎乘頁"
             className={`ml-auto rounded-full border px-3 py-0.5 text-xs ${
               bike.connected ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-gray-300 text-gray-500 dark:border-gray-700'
             }`}
           >
-            {bike.connected ? (bike.ride ? '記錄中' : '已連線') : bike.hasDevice ? '已斷線' : '未連線'}
-          </span>
+            {bike.connected ? (bike.ride ? '記錄中' : '已連線') : bike.hasDevice ? '已斷線' : '未連線 ›'}
+          </Link>
           <Link to="/help" aria-label="使用說明" className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-bold text-gray-500 dark:border-gray-700">
             ?
           </Link>

@@ -26,7 +26,21 @@ export default function Stats() {
   const [metric, setMetric] = useState<'minutes' | 'kj'>('minutes');
   const rides = useMemo(() => db.rides.filter((r) => r.memberId === db.current).sort((a, b) => a.start - b.start), [db]);
 
-  if (!db.current) return <p className="card muted">先到「家人」頁新增並選擇騎乘者。</p>;
+  if (!db.current) return <p className="card muted">先到「騎乘」頁打上你的名字。</p>;
+  // 沒紀錄時整頁空圖表只會嚇到人，只留一句引導
+  if (rides.length === 0) {
+    return (
+      <div className="space-y-3">
+        <MemberPicker />
+        <section className="card text-center">
+          <p className="text-3xl">📊</p>
+          <p className="mt-1 font-semibold">{memberName(db.current)} 還沒有紀錄</p>
+          <p className="muted mt-1">騎超過 60 秒就會存一趟，這裡會出現每週騎乘量、趨勢、功率曲線和徽章。</p>
+          <Link to="/" className="btn-primary mt-3">去騎一趟</Link>
+        </section>
+      </div>
+    );
+  }
 
   const now = Date.now();
   const weeks = weeklyVolume(rides, 12, now);
@@ -43,7 +57,6 @@ export default function Stats() {
   return (
     <div className="space-y-3">
       <MemberPicker />
-      {rides.length === 0 && <p className="card muted">{memberName(db.current)} 還沒有紀錄，騎超過 60 秒就會出現在這裡。</p>}
 
       <Section title="本週">
         <div className="grid grid-cols-3 gap-2 text-center">

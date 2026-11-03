@@ -55,7 +55,7 @@ export default function Plan() {
   if (!m || !s || !plan || !fit) {
     return (
       <p className="muted p-4">
-        先到 <Link to="/family" className="text-brand underline dark:text-brand-light">家人</Link> 頁新增自己，就會出現建議。
+        先到 <Link to="/" className="text-brand underline dark:text-brand-light">騎乘</Link> 頁打上你的名字，就會出現建議。
       </p>
     );
   }
@@ -70,6 +70,12 @@ export default function Plan() {
     nav('/');
   };
   const gain = fit.now && fit.w4 ? fit.now - fit.w4 : 0;
+  // 還沒資料的區塊不各自佔一張卡，集中列在最下面
+  const locked: [string, string][] = [
+    ...(s.level == null ? [['最近狀態', '騎滿兩週後，比較最近 7 天和平常的運動量']] as [string, string][] : []),
+    ...(fit.now == null ? [['你的體能', '累積 3 趟、每趟持續踩 10 分鐘以上']] as [string, string][] : []),
+    ...(s.table.size ? [] : [['阻力對照表', '多騎幾趟、踏頻維持在 70～90']] as [string, string][]),
+  ];
 
   return (
     <div className="space-y-3">
@@ -129,6 +135,11 @@ export default function Plan() {
               <>
                 <p className="mt-2 text-lg font-bold">{s.headline}</p>
                 <p className="muted">{s.reason}{s.rec === 'rest' && ' 想動的話，輕鬆踩一下就好。'}</p>
+                {!m.birthYear && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    到 <Link to="/family" state={{ edit: m.id }} className="text-brand underline dark:text-brand-light">家人</Link> 頁填出生年，建議會依年齡調整。
+                  </p>
+                )}
               </>
             )}
 
@@ -165,11 +176,9 @@ export default function Plan() {
       </section>
 
       {/* 4. 最近狀態（Apple Training Load） */}
+      {s.level != null && (
       <section className="card">
         <h2 className="font-semibold">最近狀態</h2>
-        {s.level == null ? (
-          <p className="muted mt-1">騎滿兩週後，會比較你最近 7 天和平常的運動量。</p>
-        ) : (
           <>
             <div className="mt-2 grid grid-cols-5 gap-1">
               {LEVELS.map((l, i) => (
@@ -179,8 +188,8 @@ export default function Plan() {
             <p className="mt-2 text-sm font-medium">{LEVELS[s.level]}</p>
             <p className="muted">最近 7 天 {s.last7} 分鐘・平常每週 {s.usual} 分鐘</p>
           </>
-        )}
       </section>
+      )}
 
       {/* 5. 本週目標（Apple 活動圓環，但可以休息） */}
       <section className="card flex items-center gap-4">
@@ -209,9 +218,10 @@ export default function Plan() {
       </section>
 
       {/* 7. 體能（Zwift FTP 自動偵測） */}
+      {fit.now != null && (
       <section className="card">
         <h2 className="font-semibold">你的體能</h2>
-        {fit.now ? (
+        {(
           <>
             {gain > 0 && fit.w4 && gain >= fit.w4 * 0.03 && <p className="mt-1 font-medium">🎉 體能進步了，比 4 週前多 {gain} W</p>}
             <div className="mt-2 grid grid-cols-3 gap-2 text-center">
@@ -226,15 +236,15 @@ export default function Plan() {
               估計 FTP（大約能撐一小時的功率）{s.wkg && `・${s.wkg} W/kg`}。偶爾騎硬一點，數字才會往上更新。
             </p>
           </>
-        ) : (
-          <p className="muted mt-1">累積 3 趟、每趟持續踩 10 分鐘以上，就會估算你的體能。</p>
         )}
       </section>
+      )}
 
       {/* 8. 我的阻力對照表（從自己的紀錄算） */}
+      {s.table.size > 0 && (
       <section className="card">
         <h2 className="font-semibold">我的阻力對照表</h2>
-        {s.table.size ? (
+        {(
           <>
             <div className="mt-2 grid grid-cols-4 gap-2 text-center text-sm">
               {[...s.table].sort((a, b) => a[0] - b[0]).map(([lv, w]) => (
@@ -246,15 +256,19 @@ export default function Plan() {
             </div>
             <p className="muted mt-2">踏頻 70～90 時，近 90 天的中位數。</p>
           </>
-        ) : (
-          <p className="muted mt-1">多騎幾趟、踏頻維持在 70～90，就會整理出每一段阻力大概多少瓦。</p>
         )}
       </section>
+      )}
 
-      {!m.birthYear && (
-        <p className="muted px-1 text-xs">
-          到 <Link to="/family" className="text-brand underline dark:text-brand-light">家人</Link> 頁填出生年，建議會依年齡調整。
-        </p>
+      {locked.length > 0 && (
+        <section className="card">
+          <h2 className="font-semibold">多騎幾趟會解鎖</h2>
+          <ul className="mt-1.5 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+            {locked.map(([t, how]) => (
+              <li key={t}>🔒 <b>{t}</b>：<span className="text-gray-500 dark:text-gray-400">{how}</span></li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {askCourse && <CourseConfirm onClose={() => setAskCourse(false)} />}

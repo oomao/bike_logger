@@ -35,7 +35,34 @@ function set(w: Workout | null) {
   listeners.forEach((l) => l());
 }
 
+// 換段提醒的聲音；AudioContext 要在使用者按按鈕時建立，之後才能自己出聲
+let audio: AudioContext | null = null;
+function unlockAudio() {
+  try {
+    audio ??= new AudioContext();
+    void audio.resume();
+  } catch { /* 不支援就只震動 */ }
+}
+
+/** 換段：震動＋嗶一聲；整份完成嗶三聲。邊看課程邊騎時不用一直盯著倒數 */
+export function cueStep(finished: boolean) {
+  const n = finished ? 3 : 1;
+  try { navigator.vibrate?.(finished ? [200, 100, 200, 100, 200] : [300, 100, 300]); } catch { /* ignore */ }
+  if (!audio) return;
+  for (let i = 0; i < n; i++) {
+    const t = audio.currentTime + i * 0.25;
+    const osc = audio.createOscillator(), gain = audio.createGain();
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+}
+
 export function startWorkout(memberId: string, o: Option, rideActive: number | null) {
+  unlockAudio();
   set({ memberId, title: o.title, steps: o.steps, day: dayKey(Date.now()), offset: rideActive });
 }
 

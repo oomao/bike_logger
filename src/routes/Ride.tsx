@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { connect, discardRide, finishAndRelease, finishRide, reconnect, disconnect, rideMemberId, useBike } from '../lib/bike';
-import { memberName, selectMember, useDb } from '../lib/store';
+import { addMember, memberName, selectMember, useDb } from '../lib/store';
 import { fmtDur } from '../lib/format';
 import BackupReminder from '../components/BackupReminder';
 import TodayStrip from '../components/TodayStrip';
@@ -20,9 +21,29 @@ function Tile({ label, value, unit, big }: { label: string; value: string; unit?
 
 const num = (v: number | null, digits = 0) => (v == null ? '—' : digits ? v.toFixed(digits) : String(Math.round(v)));
 
+// 第一次打開還沒有家人：直接在這裡打名字，不用先切到家人頁
+let justAdded: string | null = null;
+function QuickAdd() {
+  const [name, setName] = useState('');
+  const add = () => {
+    const id = addMember(name);
+    if (id) justAdded = id;
+  };
+  return (
+    <div>
+      <p className="muted mb-2">第一次用？先打你的名字。</p>
+      <div className="flex gap-2">
+        <input className="input" value={name} maxLength={20} placeholder="例如：爸爸" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <button className="btn-primary" onClick={add} disabled={!name.trim()}>開始</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Ride() {
   const bike = useBike();
   const db = useDb();
+  const added = justAdded && db.members.length === 1 && db.members[0].id === justAdded && !db.members[0].birthYear ? justAdded : null;
   const { live, ride } = bike;
   const riderId = ride?.memberId ?? db.current;
   const age = ageOf(db.members.find((m) => m.id === riderId));
@@ -45,38 +66,61 @@ export default function Ride() {
 
       {!ride && <BackupReminder />}
 
-      <section className="card">
-        <h2 className="mb-2 font-semibold">誰要騎？</h2>
-        {db.members.length ? (
-          <div className="flex flex-wrap gap-2">
-            {db.members.map((m) => (
-              <button key={m.id} className={m.id === db.current ? 'chip-on' : 'chip'} onClick={() => pick(m.id)}>
-                {m.name}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">
-            還沒有家人，先到 <Link to="/family" className="text-brand underline dark:text-brand-light">家人</Link> 頁新增。
-          </p>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="flex flex-wrap gap-2">
+      {ride ? (
+        // 騎乘中：誰在騎、連線狀態縮成一行，把課表和數字讓到上面
+        <section className="card flex items-center gap-2 py-2.5">
+          <span className="flex-1 text-sm">
+            🚴 <b>{memberName(ride.memberId)}</b>
+            <span className="ml-1 text-gray-500 dark:text-gray-400">{bike.connected ? '記錄中' : '已斷線，重新連線會接著記'}</span>
+          </span>
           {bike.connected ? (
-            <button className="btn" onClick={() => disconnect()}>中斷</button>
+            <button className="btn btn-sm" onClick={() => disconnect()}>中斷</button>
           ) : (
-            <>
-              <button className="btn-primary" onClick={() => connect(false)}>連線飛輪</button>
-              {bike.hasDevice && <button className="btn" onClick={() => reconnect()}>重新連線</button>}
-            </>
+            <button className="btn-primary btn-sm" onClick={() => reconnect()}>重新連線</button>
           )}
-        </div>
-        <p className={`mt-2 min-h-[1.25rem] text-sm ${bike.status.err ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
-          {bike.status.msg}
-        </p>
-      </section>
+        </section>
+      ) : (
+        <>
+          <section className="card">
+            <h2 className="mb-2 font-semibold">誰要騎？</h2>
+            {db.members.length ? (
+              <div className="flex flex-wrap gap-2">
+                {db.members.map((m) => (
+                  <button key={m.id} className={m.id === db.current ? 'chip-on' : 'chip'} onClick={() => pick(m.id)}>
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <QuickAdd />
+            )}
+            {added && (
+              <p className="muted mt-2">
+                想讓建議更準？到 <Link to="/family" state={{ edit: added }} className="text-brand underline dark:text-brand-light">家人</Link> 頁填出生年、體重（選填）。
+              </p>
+            )}
+          </section>
+
+          <section className="card">
+            {bike.connected ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">✓ 已連線，開始踩就會記錄</span>
+                <button className="btn btn-sm" onClick={() => disconnect()}>中斷</button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button className="btn-primary min-h-[52px] flex-1 text-base" onClick={() => connect(false)}>連線飛輪</button>
+                {bike.hasDevice && <button className="btn min-h-[52px]" onClick={() => reconnect()}>重新連線</button>}
+              </div>
+            )}
+            {!(bike.connected && !bike.status.err) && (
+              <p className={`mt-2 min-h-[1.25rem] text-sm ${bike.status.err ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                {bike.status.msg}
+              </p>
+            )}
+          </section>
+        </>
+      )}
 
       <TodayStrip />
 
@@ -111,9 +155,9 @@ export default function Ride() {
             <button className="btn-danger" disabled={!ride} onClick={() => confirm('放棄這趟，不儲存？') && discardRide()}>放棄</button>
           </div>
         </div>
-        <p className="muted mt-2">
+        {db.rides.length < 3 && <p className="muted mt-2">
           開始踩就會自動計時，停踩超過 60 秒自動存檔（不到 60 秒不存）。換人前按「結束並儲存」，手機會放開飛輪的藍牙，下一支手機才連得上。
-        </p>
+        </p>}
       </section>
     </div>
   );

@@ -21,7 +21,10 @@ export default function TodayStrip() {
     if (!bike.ride || workout.offset == null) {
       return (
         <section className="card flex items-center gap-2 text-sm">
-          <span className="flex-1">📋 已選「{workout.title}」，開始踩就會跟著課表走。</span>
+          <span className="flex-1">
+            📋 已選「{workout.title}」
+            {bike.connected ? '，開始踩就會跟著課表走。' : <b className="block">下一步：先踩幾下讓錶頭亮，再按上方「連線飛輪」</b>}
+          </span>
           <button className="btn btn-sm" onClick={stopWorkout}>取消</button>
         </section>
       );
