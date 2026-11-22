@@ -1,16 +1,25 @@
 // 建議頁：把各家 App 的好做法整合在一起，每一塊上方註明學誰
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import MemberPicker from '../components/MemberPicker';
 import CourseConfirm from '../components/CourseConfirm';
 import { useBike } from '../lib/bike';
 import { ackSafety, setFeel, toggleRestDay, useDb } from '../lib/store';
-import { dayKey, FEELS, fitnessHistory, LEVELS, suggest, WEEK_GOAL, weekPlan, type Kind, type Option } from '../lib/suggest';
+import { ageOf, dayKey, FEELS, fitnessHistory, LEVELS, suggest, WEEK_GOAL, weekPlan, type Kind, type Option } from '../lib/suggest';
 import { startWorkout, stopWorkout, useWorkout } from '../lib/workout';
+import { wkgLevel, type WkgTone } from '../lib/fitness';
 
 const range = (r: [number, number]) => (r[0] === r[1] ? String(r[0]) : r.join('–'));
 const target = (o: { watts: [number, number] | null; levels: [number, number] | null }) =>
   o.watts ? `${range(o.watts)} W` + (o.levels ? `・阻力 ${range(o.levels)} 段` : '') : null;
+
+const PERIODS: [string, 'w12' | 'w4' | 'now'][] = [['12 週前', 'w12'], ['4 週前', 'w4'], ['現在', 'now']];
+const LEVEL_TONE: Record<WkgTone, string> = {
+  low: 'text-sky-600 dark:text-sky-400',
+  ok: 'text-emerald-600 dark:text-emerald-400',
+  good: 'text-emerald-600 dark:text-emerald-400',
+  great: 'text-orange-600 dark:text-orange-400',
+};
 
 function Ring({ pct }: { pct: number }) {
   const r = 34, c = 2 * Math.PI * r;
@@ -70,6 +79,13 @@ export default function Plan() {
     nav('/');
   };
   const gain = fit.now && fit.w4 ? fit.now - fit.w4 : 0;
+  // 體能卡：體能、體重、W/kg 三列，沒記體重就只留體能
+  const hasKg = PERIODS.some(([, k]) => fit.pts[k].kg != null);
+  const rows: [string, (number | null)[], string][] = [
+    ['體能', PERIODS.map(([, k]) => fit.pts[k].ftp), 'W'],
+    ...(hasKg ? ([['體重', PERIODS.map(([, k]) => fit.pts[k].kg), '公斤'], ['W/kg', PERIODS.map(([, k]) => fit.pts[k].wkg == null ? null : Math.round(fit.pts[k].wkg! * 10) / 10), '']] as [string, (number | null)[], string][]) : []),
+  ];
+  const level = fit.pts.now.wkg != null ? wkgLevel(fit.pts.now.wkg, m.sex, ageOf(m)) : null;
   // 還沒資料的區塊不各自佔一張卡，集中列在最下面
   const locked: [string, string][] = [
     ...(s.level == null ? [['最近狀態', '騎滿兩週後，比較最近 7 天和平常的運動量']] as [string, string][] : []),
@@ -223,17 +239,30 @@ export default function Plan() {
         <h2 className="font-semibold">你的體能</h2>
         {(
           <>
-            {gain > 0 && fit.w4 && gain >= fit.w4 * 0.03 && <p className="mt-1 font-medium">🎉 體能進步了，比 4 週前多 {gain} W</p>}
-            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-              {([['12 週前', fit.w12], ['4 週前', fit.w4], ['現在', fit.now]] as const).map(([k, v]) => (
-                <div key={k} className="rounded-xl bg-stone-100 py-2 dark:bg-gray-800">
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{k}</div>
-                  <div className="font-bold tabular-nums">{v ?? '—'}{v && <span className="text-xs font-normal"> W</span>}</div>
-                </div>
+            {!fit.insight && gain > 0 && fit.w4 && gain >= fit.w4 * 0.03 && <p className="mt-1 font-medium">🎉 體能進步了，比 4 週前多 {gain} W</p>}
+            <div className="mt-2 grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-x-2 gap-y-1.5 text-center">
+              <span />
+              {PERIODS.map(([k]) => <span key={k} className="text-xs text-gray-500 dark:text-gray-400">{k}</span>)}
+              {rows.map(([label, vals, unit]) => (
+                <Fragment key={label}>
+                  <span className="text-left text-xs text-gray-500 dark:text-gray-400">{label}</span>
+                  {vals.map((v, i) => (
+                    <div key={i} className={`rounded-xl bg-stone-100 py-1.5 dark:bg-gray-800 ${i === 2 ? 'font-bold' : ''}`}>
+                      <span className="tabular-nums">{v ?? '—'}</span>{v != null && <span className="text-xs font-normal text-gray-500"> {unit}</span>}
+                    </div>
+                  ))}
+                </Fragment>
               ))}
             </div>
+            {level && <p className="mt-2 text-sm">W/kg {fit.pts.now.wkg!.toFixed(1)}，大約跟同年齡同性別的人比：<b className={LEVEL_TONE[level[1]]}>{level[0]}</b>（粗略參考）</p>}
+            {fit.insight && <p className="mt-1 text-sm font-medium">{fit.insight}</p>}
+            {!hasKg && (
+              <p className="muted mt-2 text-xs">
+                到 <Link to="/history" className="text-brand underline dark:text-brand-light">紀錄</Link> 頁記體重，這裡就會顯示 W/kg 和變化。
+              </p>
+            )}
             <p className="muted mt-2">
-              估計 FTP（大約能撐一小時的功率）{s.wkg && `・${s.wkg} W/kg`}。偶爾騎硬一點，數字才會往上更新。
+              估計 FTP（大約能撐一小時的功率）。偶爾騎硬一點，數字才會往上更新。
             </p>
           </>
         )}

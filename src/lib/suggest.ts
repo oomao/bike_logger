@@ -3,6 +3,7 @@
 // 7 天 vs 28 天運動量比（Apple Training Load、ACWR）、Tanaka 最大心率 208 − 0.7 × 年齡。
 import { rideBests, series, weekStart } from './analytics';
 import { latestWeight, type Member, type Ride } from './store';
+import { insight, point, weightAt } from './fitness';
 
 const DAY = 86400000;
 export const WEEK_GOAL = 150; // 分鐘，國健署「動動150」
@@ -269,9 +270,11 @@ export function weekPlan(s: Suggestion, now = Date.now()): { days: PlanDay[]; no
   };
 }
 
-/** 體能變化：現在、4 週前、12 週前的估計 FTP（學 Zwift 自動偵測） */
+/** 體能變化：現在、4 週前、12 週前的估計 FTP（學 Zwift 自動偵測），同時帶出當時的體重和 W/kg */
 export function fitnessHistory(m: Member, all: Ride[], now = Date.now()) {
   const rides = all.filter((r) => r.memberId === m.id);
   const at = (ms: number) => estimateFtp(rides.filter((r) => r.start <= ms), ms);
-  return { now: at(now), w4: at(now - 28 * DAY), w12: at(now - 84 * DAY) };
+  const pt = (ms: number) => point(at(ms), weightAt(m.weights, ms));
+  const p = { now: pt(now), w4: pt(now - 28 * DAY), w12: pt(now - 84 * DAY) };
+  return { now: p.now.ftp, w4: p.w4.ftp, w12: p.w12.ftp, pts: p, insight: insight(p.now, p.w4) };
 }
