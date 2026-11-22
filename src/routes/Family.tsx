@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { addMember, deleteMember, importData, latestWeight, selectMember, setBigText, setProfile, unbackedRides, useDb, type Member } from '../lib/store';
 import { bigTextOn } from '../lib/suggest';
 import { download, fmtDate } from '../lib/format';
@@ -39,7 +39,7 @@ function BodyEditor({ m, onDone, onDelete }: { m: Member; onDone: () => void; on
           <button key={k} type="button" className={sex === k ? 'chip-on' : 'chip'} onClick={() => setSex(sex === k ? null : k)}>{n}</button>
         ))}
       </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">都可以不填。出生年用來調整建議強度和心率提醒；出生年、身高、性別用來估 BMI、體脂率、基礎代謝。只存在這支手機，備份檔會一起帶走。體重和圍度到「體重」頁記。</p>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">都可以不填。出生年用來調整建議強度和心率提醒；出生年、身高、性別用來估 BMI、體脂率、基礎代謝。只存在這支手機，備份檔會一起帶走。每天的體重和圍度到「紀錄」頁記。</p>
       <div className="mt-2 flex gap-2">
         <button className="btn btn-sm flex-1" onClick={onDone}>取消</button>
         <button className="btn-primary btn-sm flex-1" onClick={save}>儲存</button>
@@ -61,7 +61,6 @@ export default function Family() {
   const bike = useBike();
   const [name, setName] = useState('');
   const loc = useLocation();
-  const nav = useNavigate();
   // 從別頁的「填出生年」連結過來，直接打開那個人的設定
   const [editing, setEditing] = useState<string | null>((loc.state as { edit?: string } | null)?.edit ?? null);
   const [who, setWho] = useState<string>(db.current ?? '__all');
@@ -126,7 +125,6 @@ export default function Family() {
                   <span className="block text-xs">{[m.birthYear && m.birthYear + ' 年生', m.height && m.height + ' cm', latestWeight(m) && latestWeight(m) + ' kg'].filter(Boolean).join('・')}</span>
                 )}
               </span>
-              <button className="btn btn-sm" onClick={() => { selectMember(m.id); nav('/body'); }}>體重</button>
               <button className="btn btn-sm" onClick={() => setEditing(editing === m.id ? null : m.id)}>{editing === m.id ? '收起' : '設定'}</button>
               {editing === m.id && <BodyEditor m={m} onDone={() => setEditing(null)} onDelete={() => remove(m.id, m.name)} />}
             </li>

@@ -1,6 +1,5 @@
 // 體重與圍度：手動輸入，BMI、體脂率、基礎代謝是用身高年齡體重性別「估」的參考值
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import BandRow from '../components/BandRow';
 import MemberPicker from '../components/MemberPicker';
 import Spark from '../components/Spark';
@@ -8,75 +7,10 @@ import WeightTrend from '../components/WeightTrend';
 import { DAY, kg2, md, signed, ymd } from '../lib/bodyfmt';
 import { bands, compose, type Profile } from '../lib/bia';
 import { ageOf } from '../lib/suggest';
-import { logTape, logWeight, removeTape, removeWeight, TAPE_ITEMS, useDb, type Member, type Tape } from '../lib/store';
-
-/** 選今天用現在的時間；補登過去的日子用當天中午，免得排序亂掉 */
-const stamp = (day: string) => {
-  const [y, m, d] = day.split('-').map(Number);
-  return day === ymd(Date.now()) ? Date.now() : new Date(y, m - 1, d, 12).getTime();
-};
-const dayEntry = <T,>(list: [number, T][] | undefined, day: string) => list?.find(([t]) => ymd(t) === day)?.[1];
+import { removeTape, removeWeight, TAPE_ITEMS, useDb, type Member, type Tape } from '../lib/store';
 
 // 體重分級：國健署 BMI 18.5 / 24 / 27，四段等寬色條
 const WEIGHT_BANDS: [string, string][] = [['偏瘦', 'bg-sky-400'], ['標準', 'bg-emerald-400'], ['微胖', 'bg-amber-400'], ['肥胖', 'bg-red-500']];
-
-function Entry({ m, initialDay }: { m: Member; initialDay: string }) {
-  const today = ymd(Date.now());
-  const [day, setDay] = useState(initialDay);
-  const [kg, setKg] = useState('');
-  const [cm, setCm] = useState<Partial<Record<keyof Tape, string>>>({});
-  const [saved, setSaved] = useState(false);
-
-  // 換日期或換人，帶出那天已經記的內容，可以直接改
-  useEffect(() => {
-    const w = dayEntry(m.weights, day);
-    const t = dayEntry(m.tapes, day);
-    setKg(w != null ? kg2(w) : '');
-    setCm(Object.fromEntries(TAPE_ITEMS.map(([k]) => [k, t?.[k] != null ? String(t[k]) : ''])));
-    setSaved(false);
-  }, [m.id, day]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const save = () => {
-    const w = kg.trim() ? Number(kg) : null;
-    if (w != null && !(w >= 20 && w <= 250)) return alert('體重請填 20～250 公斤');
-    const tape: Tape = {};
-    for (const [k, n] of TAPE_ITEMS) {
-      const raw = cm[k]?.trim();
-      if (!raw) continue;
-      const v = Number(raw);
-      if (!(v >= 10 && v <= 250)) return alert(`${n}請填 10～250 公分`);
-      tape[k] = Math.round(v * 10) / 10;
-    }
-    if (w == null && !Object.keys(tape).length) return alert('至少填一項');
-    const ts = stamp(day);
-    if (w != null) logWeight(m.id, Math.round(w * 100) / 100, ts);
-    if (Object.keys(tape).length) logTape(m.id, tape, ts);
-    setSaved(true);
-  };
-
-  return (
-    <section className="card">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">記錄</h2>
-        <input type="date" className="input max-w-[11rem] flex-none" value={day} max={today} onChange={(e) => e.target.value && setDay(e.target.value)} />
-      </div>
-      <label className="mt-3 block text-sm text-gray-600 dark:text-gray-300">
-        體重（公斤）
-        <input className="input mt-1 w-full text-xl" inputMode="decimal" placeholder="例如 65.35" value={kg} onChange={(e) => { setKg(e.target.value); setSaved(false); }} />
-      </label>
-      <p className="muted mt-3 text-xs">圍度（公分，有量的填就好）</p>
-      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-2">
-        {TAPE_ITEMS.map(([k, n]) => (
-          <label key={k} className="text-sm text-gray-600 dark:text-gray-300">
-            {n}
-            <input className="input mt-1 w-full" inputMode="decimal" placeholder="例如 80" value={cm[k] ?? ''} onChange={(e) => { setCm({ ...cm, [k]: e.target.value }); setSaved(false); }} />
-          </label>
-        ))}
-      </div>
-      <button className="btn-primary mt-3 w-full" onClick={save}>{saved ? '✓ 已儲存' : day === today ? '儲存' : '儲存到 ' + md(stamp(day))}</button>
-    </section>
-  );
-}
 
 function WeightCard({ m }: { m: Member }) {
   const ws = m.weights ?? [];
@@ -232,22 +166,21 @@ function Recent({ m }: { m: Member }) {
 
 export default function Body() {
   const db = useDb();
-  const [params] = useSearchParams();
   const m = db.members.find((x) => x.id === db.current);
-  const day = params.get('day');
-  const initial = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : ymd(Date.now());
-
   if (!m) return <p className="card muted">先到「騎乘」頁打上你的名字。</p>;
   return (
     <div className="space-y-3">
       <MemberPicker />
-      <Entry key={m.id} m={m} initialDay={initial} />
+      <Link to="/history" className="card flex items-center gap-2 text-sm">
+        <span>⚖️</span>
+        <span className="flex-1">要記體重或圍度，到「紀錄」頁點那一天</span>
+        <span className="text-gray-400">›</span>
+      </Link>
       <WeightCard m={m} />
       <Estimate m={m} />
       <TapeCard m={m} />
       <WeightTrend m={m} />
       <Recent m={m} />
-      <p className="muted px-1 text-xs"><Link to="/family" className="text-brand underline dark:text-brand-light">回家人頁</Link></p>
     </div>
   );
 }

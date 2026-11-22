@@ -1,5 +1,7 @@
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { memberName, selectMember, TAPE_ITEMS, useDb, type Ride, type Tape } from '../lib/store';
+import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { memberName, TAPE_ITEMS, useDb, type Member, type Ride, type Tape } from '../lib/store';
+import BodyEntry from '../components/BodyEntry';
 import { fmtDate, fmtDur } from '../lib/format';
 import { kj, newRecords } from '../lib/analytics';
 import BackupReminder from '../components/BackupReminder';
@@ -90,32 +92,38 @@ function RideRow({ r, showWho, all }: { r: Ride; showWho: boolean; all: Ride[] }
 
 interface BodyDay { memberId: string; kg?: number; tape?: Tape }
 
-function BodyRow({ b, showWho, day }: { b: BodyDay; showWho: boolean; day: string }) {
-  const nav = useNavigate();
-  const bits = [b.kg != null && b.kg.toFixed(2) + ' 公斤', ...TAPE_ITEMS.filter(([k]) => b.tape?.[k] != null).map(([k, n]) => n + ' ' + b.tape![k])].filter(Boolean);
+function bodyBits(b: BodyDay) {
+  return [b.kg != null && b.kg.toFixed(2) + ' 公斤', ...TAPE_ITEMS.filter(([k]) => b.tape?.[k] != null).map(([k, n]) => n + ' ' + b.tape![k])].filter(Boolean).join('・');
+}
+
+/** 選了單一家人：直接在這天記體重、圍度（沒記過就是一顆按鈕，記過就顯示內容，可以改） */
+function BodySlot({ m, b, day }: { m: Member; b?: BodyDay; day: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="card">
+      <div className="flex items-center gap-2">
+        <h2 className="flex-1 font-semibold">⚖️ 體重／圍度</h2>
+        {!open && <button className={b ? 'btn btn-sm' : 'btn-primary btn-sm'} onClick={() => setOpen(true)}>{b ? '編輯' : '＋ 記錄'}</button>}
+      </div>
+      {b && <p className="mt-1 text-sm">{bodyBits(b)}</p>}
+      {!b && !open && <p className="muted mt-1">這天還沒記。</p>}
+      {open && <BodyEntry m={m} day={day} onClose={() => setOpen(false)} />}
+    </section>
+  );
+}
+
+/** 選「全部家人」時，列出這天誰有記；點了就切到那位 */
+function BodyRow({ b, onPick }: { b: BodyDay; onPick: () => void }) {
   return (
     <li>
-      <button className="flex w-full items-center gap-2 py-3 text-left" onClick={() => { selectMember(b.memberId); nav('/body?day=' + day); }}>
+      <button className="flex w-full items-center gap-2 py-3 text-left" onClick={onPick}>
         <span aria-hidden>⚖️</span>
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold">
-            {bits.join('・')}
-            {showWho && <span className="font-normal text-gray-500 dark:text-gray-400">・{memberName(b.memberId)}</span>}
-          </div>
+        <div className="min-w-0 flex-1 font-semibold">
+          {bodyBits(b)}<span className="font-normal text-gray-500 dark:text-gray-400">・{memberName(b.memberId)}</span>
         </div>
         <span className="text-gray-400">›</span>
       </button>
     </li>
-  );
-}
-
-/** 那天還沒記體重：補登的入口 */
-function BodyLink({ memberId, day }: { memberId: string; day: string }) {
-  const nav = useNavigate();
-  return (
-    <button className="btn btn-sm mt-3 w-full" onClick={() => { selectMember(memberId); nav('/body?day=' + day); }}>
-      ⚖️ 記這天的體重／圍度
-    </button>
   );
 }
 
@@ -205,6 +213,10 @@ export default function History() {
         )}
       </section>
 
+      {view === 'day' && filter !== '__all' && db.members.some((x) => x.id === filter) && (
+        <BodySlot key={filter + day} m={db.members.find((x) => x.id === filter)!} b={dayBody[0]} day={day} />
+      )}
+
       <section className="card">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="font-semibold">{view === 'all' ? '全部歷史紀錄' : dayLabel}</h2>
@@ -215,14 +227,11 @@ export default function History() {
             合計 {total.min} 分・{total.kj} kJ・{total.km} km
           </p>
         )}
-        {(dayBody.length > 0 || shown.length > 0) && (
+        {((filter === '__all' && dayBody.length > 0) || shown.length > 0) && (
           <ul className="mt-1 divide-y divide-gray-200 dark:divide-gray-800">
-            {dayBody.map((b) => <BodyRow key={b.memberId} b={b} showWho={filter === '__all'} day={day} />)}
+            {filter === '__all' && dayBody.map((b) => <BodyRow key={b.memberId} b={b} onPick={() => update({ who: b.memberId })} />)}
             {shown.slice(0, 300).map((r) => <RideRow key={r.id} r={r} showWho={filter === '__all'} all={db.rides} />)}
           </ul>
-        )}
-        {view === 'day' && filter !== '__all' && !dayBody.length && (
-          <BodyLink memberId={filter} day={day} />
         )}
         {shown.length === 0 && (
           <p className="muted mt-3">

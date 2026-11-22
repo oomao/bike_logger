@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom';
-import QuickWeight from './QuickWeight';
 import WeightTrend from './WeightTrend';
 import { kg2, md, signed } from '../lib/bodyfmt';
 import type { Member } from '../lib/store';
 
-/** 圖表頁最上面：記今天的體重、看最近的變化和趨勢圖；圍度、BMI 估算在完整的「體重」頁 */
+/** 圖表頁最上面：最近的體重和趨勢圖；要記體重到「紀錄」頁，圍度、BMI 估算在「體重」頁 */
 export default function WeightSection({ m }: { m: Member }) {
   const ws = m.weights ?? [];
   const last = ws[ws.length - 1], prev = ws[ws.length - 2];
@@ -23,8 +22,9 @@ export default function WeightSection({ m }: { m: Member }) {
             {d != null && d !== 0 && <span className={`ml-2 text-sm font-semibold ${d > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>{signed(d)}</span>}
           </p>
         )}
-        <div className="mt-2"><QuickWeight m={m} /></div>
-        {ws.length < 2 && <p className="muted mt-2 text-xs">記兩天以上，這裡就會出現趨勢圖。</p>}
+        {!last && <p className="muted mt-1">還沒記過體重。</p>}
+        {ws.length < 2 && <p className="muted mt-1 text-xs">記兩天以上，這裡就會出現趨勢圖。</p>}
+        <Link to="/history" className="btn btn-sm mt-2 w-full">⚖️ 到「紀錄」頁記體重</Link>
       </section>
       <WeightTrend m={m} />
     </>
