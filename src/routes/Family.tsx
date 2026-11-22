@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { addMember, deleteMember, importData, latestWeight, selectMember, setBigText, setBody, unbackedRides, useDb, type Member } from '../lib/store';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { addMember, deleteMember, importData, latestWeight, selectMember, setBigText, setProfile, unbackedRides, useDb, type Member } from '../lib/store';
 import { bigTextOn } from '../lib/suggest';
 import { download, fmtDate } from '../lib/format';
 import { toCsv } from '../lib/export';
@@ -9,15 +9,16 @@ import { connect, useBike } from '../lib/bike';
 
 function BodyEditor({ m, onDone, onDelete }: { m: Member; onDone: () => void; onDelete: () => void }) {
   const [year, setYear] = useState(m.birthYear ? String(m.birthYear) : '');
-  const [kg, setKg] = useState(String(latestWeight(m) ?? ''));
+  const [cm, setCm] = useState(m.height ? String(m.height) : '');
+  const [sex, setSex] = useState<'m' | 'f' | null>(m.sex ?? null);
   const save = () => {
     const thisYear = new Date().getFullYear();
     let y = year.trim() ? Number(year) : null;
     if (y != null && y < 200) y += 1911; // 填民國年也可以
-    const w = kg.trim() ? Number(kg) : null;
+    const h = cm.trim() ? Number(cm) : null;
     if (y != null && !(Number.isInteger(y) && y >= thisYear - 110 && y <= thisYear - 5)) return alert('出生年請填西元或民國年，例如 1960 或 49');
-    if (w != null && !(w >= 20 && w <= 200)) return alert('體重請填 20～200 公斤');
-    setBody(m.id, y, w == null ? null : Math.round(w * 10) / 10);
+    if (h != null && !(h >= 80 && h <= 230)) return alert('身高請填 80～230 公分');
+    setProfile(m.id, { birthYear: y, sex, height: h == null ? null : Math.round(h * 10) / 10 });
     onDone();
   };
   return (
@@ -28,11 +29,17 @@ function BodyEditor({ m, onDone, onDelete }: { m: Member; onDone: () => void; on
           <input className="input mt-1 w-full" inputMode="numeric" placeholder="例如 1960" value={year} onChange={(e) => setYear(e.target.value)} />
         </label>
         <label className="flex-1 text-xs text-gray-500 dark:text-gray-400">
-          體重（公斤）
-          <input className="input mt-1 w-full" inputMode="decimal" placeholder="例如 62" value={kg} onChange={(e) => setKg(e.target.value)} />
+          身高（公分）
+          <input className="input mt-1 w-full" inputMode="decimal" placeholder="例如 165" value={cm} onChange={(e) => setCm(e.target.value)} />
         </label>
       </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">都可以不填。出生年用來調整建議強度和心率提醒，體重用來算 W/kg。只存在這支手機，備份檔會一起帶走。</p>
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        性別
+        {([['m', '男'], ['f', '女']] as const).map(([k, n]) => (
+          <button key={k} type="button" className={sex === k ? 'chip-on' : 'chip'} onClick={() => setSex(sex === k ? null : k)}>{n}</button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">都可以不填。出生年用來調整建議強度和心率提醒；出生年、身高、性別用來估 BMI、體脂率、基礎代謝。只存在這支手機，備份檔會一起帶走。體重和圍度到「體重」頁記。</p>
       <div className="mt-2 flex gap-2">
         <button className="btn btn-sm flex-1" onClick={onDone}>取消</button>
         <button className="btn-primary btn-sm flex-1" onClick={save}>儲存</button>
@@ -54,6 +61,7 @@ export default function Family() {
   const bike = useBike();
   const [name, setName] = useState('');
   const loc = useLocation();
+  const nav = useNavigate();
   // 從別頁的「填出生年」連結過來，直接打開那個人的設定
   const [editing, setEditing] = useState<string | null>((loc.state as { edit?: string } | null)?.edit ?? null);
   const [who, setWho] = useState<string>(db.current ?? '__all');
@@ -114,10 +122,11 @@ export default function Family() {
               </button>
               <span className="muted ml-auto text-right">
                 {db.rides.filter((r) => r.memberId === m.id).length} 筆
-                {(m.birthYear || latestWeight(m)) && (
-                  <span className="block text-xs">{[m.birthYear && m.birthYear + ' 年生', latestWeight(m) && latestWeight(m) + ' kg'].filter(Boolean).join('・')}</span>
+                {(m.birthYear || m.height || latestWeight(m)) && (
+                  <span className="block text-xs">{[m.birthYear && m.birthYear + ' 年生', m.height && m.height + ' cm', latestWeight(m) && latestWeight(m) + ' kg'].filter(Boolean).join('・')}</span>
                 )}
               </span>
+              <button className="btn btn-sm" onClick={() => { selectMember(m.id); nav('/body'); }}>體重</button>
               <button className="btn btn-sm" onClick={() => setEditing(editing === m.id ? null : m.id)}>{editing === m.id ? '收起' : '設定'}</button>
               {editing === m.id && <BodyEditor m={m} onDone={() => setEditing(null)} onDelete={() => remove(m.id, m.name)} />}
             </li>

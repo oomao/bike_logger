@@ -1,5 +1,5 @@
-import { Link, useSearchParams } from 'react-router-dom';
-import { memberName, useDb, type Ride } from '../lib/store';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { memberName, selectMember, TAPE_ITEMS, useDb, type Ride, type Tape } from '../lib/store';
 import { fmtDate, fmtDur } from '../lib/format';
 import { kj, newRecords } from '../lib/analytics';
 import BackupReminder from '../components/BackupReminder';
@@ -15,8 +15,8 @@ const parseDay = (key: string) => {
 };
 const WEEK = ['一', '二', '三', '四', '五', '六', '日'];
 
-function Calendar({ month, selected, minutesByDay, onPick, onMonth }: {
-  month: Date; selected: string | null; minutesByDay: Map<string, number>;
+function Calendar({ month, selected, minutesByDay, bodyDays, onPick, onMonth }: {
+  month: Date; selected: string | null; minutesByDay: Map<string, number>; bodyDays: Set<string>;
   onPick: (key: string) => void; onMonth: (delta: number) => void;
 }) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -55,11 +55,12 @@ function Calendar({ month, selected, minutesByDay, onPick, onMonth }: {
               title={min ? Math.round(min) + ' 分' : undefined}
             >
               {d}
+              {bodyDays.has(key) && <span className={`absolute bottom-0.5 h-1 w-1 rounded-full ${min ? 'bg-white' : 'bg-brand dark:bg-brand-light'}`} />}
             </button>
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-gray-400">有騎的日子會上色，越深騎越久；外框是今天。</p>
+      <p className="mt-2 text-[11px] text-gray-400">有騎的日子會上色，越深騎越久；小圓點是有記體重或圍度；外框是今天。</p>
     </div>
   );
 }
@@ -87,6 +88,27 @@ function RideRow({ r, showWho, all }: { r: Ride; showWho: boolean; all: Ride[] }
   );
 }
 
+interface BodyDay { memberId: string; kg?: number; tape?: Tape }
+
+function BodyRow({ b, showWho, day }: { b: BodyDay; showWho: boolean; day: string }) {
+  const nav = useNavigate();
+  const bits = [b.kg != null && b.kg.toFixed(2) + ' 公斤', ...TAPE_ITEMS.filter(([k]) => b.tape?.[k] != null).map(([k, n]) => n + ' ' + b.tape![k])].filter(Boolean);
+  return (
+    <li>
+      <button className="flex w-full items-center gap-2 py-3 text-left" onClick={() => { selectMember(b.memberId); nav('/body?day=' + day); }}>
+        <span aria-hidden>⚖️</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">
+            {bits.join('・')}
+            {showWho && <span className="font-normal text-gray-500 dark:text-gray-400">・{memberName(b.memberId)}</span>}
+          </div>
+        </div>
+        <span className="text-gray-400">›</span>
+      </button>
+    </li>
+  );
+}
+
 export default function History() {
   const db = useDb();
   const [params, setParams] = useSearchParams();
@@ -108,6 +130,21 @@ export default function History() {
   const minutesByDay = new Map<string, number>();
   for (const r of mine) minutesByDay.set(dayKey(r.start), (minutesByDay.get(dayKey(r.start)) ?? 0) + r.duration / 60);
 
+  // 有記體重或圍度的日子（跟著上面的家人篩選）
+  const bodyByDay = new Map<string, BodyDay[]>();
+  for (const m of db.members) {
+    if (filter !== '__all' && m.id !== filter) continue;
+    const slot = (t: number) => {
+      const list = bodyByDay.get(dayKey(t)) ?? [];
+      bodyByDay.set(dayKey(t), list);
+      let row = list.find((x) => x.memberId === m.id);
+      if (!row) list.push((row = { memberId: m.id }));
+      return row;
+    };
+    for (const [t, kg] of m.weights ?? []) slot(t).kg = kg;
+    for (const [t, tape] of m.tapes ?? []) slot(t).tape = tape;
+  }
+  const dayBody = view === 'day' ? bodyByDay.get(day) ?? [] : [];
   const dayRides = mine.filter((r) => dayKey(r.start) === day);
   const shown = view === 'all' ? mine : dayRides;
   const sum = (arr: Ride[]) => ({
@@ -148,6 +185,7 @@ export default function History() {
             month={month}
             selected={day}
             minutesByDay={minutesByDay}
+            bodyDays={new Set(bodyByDay.keys())}
             onPick={(key) => update({ day: key === today ? null : key })}
             onMonth={(delta) => {
               const m = new Date(month.getFullYear(), month.getMonth() + delta, 1);
@@ -167,14 +205,16 @@ export default function History() {
             合計 {total.min} 分・{total.kj} kJ・{total.km} km
           </p>
         )}
-        {shown.length === 0 ? (
-          <p className="muted mt-3">
-            {view === 'all' ? '還沒有紀錄。騎超過 60 秒就會自動存在這裡。' : dayLabel + '沒有騎乘紀錄。點月曆上有顏色的日子，或按「歷史紀錄」看全部。'}
-          </p>
-        ) : (
+        {(dayBody.length > 0 || shown.length > 0) && (
           <ul className="mt-1 divide-y divide-gray-200 dark:divide-gray-800">
+            {dayBody.map((b) => <BodyRow key={b.memberId} b={b} showWho={filter === '__all'} day={day} />)}
             {shown.slice(0, 300).map((r) => <RideRow key={r.id} r={r} showWho={filter === '__all'} all={db.rides} />)}
           </ul>
+        )}
+        {shown.length === 0 && (
+          <p className="muted mt-3">
+            {view === 'all' ? '還沒有紀錄。騎超過 60 秒就會自動存在這裡。' : dayLabel + (dayBody.length ? '沒有騎乘紀錄。' : '沒有騎乘紀錄。點月曆上有顏色的日子，或按「歷史紀錄」看全部。')}
+          </p>
         )}
       </section>
     </div>

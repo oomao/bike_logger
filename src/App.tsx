@@ -12,6 +12,7 @@ import Plan from './routes/Plan';
 // 圖表頁用到 recharts，拆出去讓騎乘頁打開更快
 const Stats = lazy(() => import('./routes/Stats'));
 const RideDetail = lazy(() => import('./routes/RideDetail'));
+const Body = lazy(() => import('./routes/Body'));
 
 export default function App() {
   // App 最外層只看「是否騎乘中」，不然每秒的即時數據會讓圖表頁一直重畫
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/ride/:id" element={<RideDetail />} />
         <Route path="/stats" element={<Stats />} />
         <Route path="/family" element={<Family />} />
+        <Route path="/body" element={<Body />} />
         <Route path="/help" element={<Help />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

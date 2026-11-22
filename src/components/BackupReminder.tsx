@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { unbackedRides, useDb } from '../lib/store';
+import { recordCount, unbackedRides, useDb } from '../lib/store';
 import { canShareFiles, saveBackup } from '../lib/backup';
 
 const REMIND_AFTER_RIDES = 5;
@@ -11,7 +11,7 @@ export default function BackupReminder() {
   const [hidden, setHidden] = useState(false);
   const pending = unbackedRides(db);
   const days = db.lastBackup ? (Date.now() - db.lastBackup) / 86400000 : Infinity;
-  const due = pending >= REMIND_AFTER_RIDES || (pending > 0 && days >= REMIND_AFTER_DAYS && db.rides.length >= 3);
+  const due = pending >= REMIND_AFTER_RIDES || (pending > 0 && days >= REMIND_AFTER_DAYS && recordCount(db) >= 3);
   if (hidden || !due) return null;
 
   const who = db.members.length === 1 ? db.members[0].id : null;
