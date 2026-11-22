@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import MemberPicker from '../components/MemberPicker';
+import WeightSection from '../components/WeightSection';
 import { memberName, useDb } from '../lib/store';
 import {
   badges, dailyGrid, durLabel, kj, powerCurve, records, trends, weeklyVolume, weekStreak,
@@ -27,11 +28,13 @@ export default function Stats() {
   const rides = useMemo(() => db.rides.filter((r) => r.memberId === db.current).sort((a, b) => a.start - b.start), [db]);
 
   if (!db.current) return <p className="card muted">先到「騎乘」頁打上你的名字。</p>;
-  // 沒紀錄時整頁空圖表只會嚇到人，只留一句引導
+  const me = db.members.find((m) => m.id === db.current);
+  // 沒紀錄時整頁空圖表只會嚇到人，只留一句引導（體重照樣可以記）
   if (rides.length === 0) {
     return (
       <div className="space-y-3">
         <MemberPicker />
+        {me && <WeightSection m={me} />}
         <section className="card text-center">
           <p className="text-3xl">📊</p>
           <p className="mt-1 font-semibold">{memberName(db.current)} 還沒有紀錄</p>
@@ -57,6 +60,7 @@ export default function Stats() {
   return (
     <div className="space-y-3">
       <MemberPicker />
+      {me && <WeightSection m={me} />}
 
       <Section title="本週">
         <div className="grid grid-cols-3 gap-2 text-center">

@@ -1,23 +1,15 @@
 // 體重與圍度：手動輸入，BMI、體脂率、基礎代謝是用身高年齡體重性別「估」的參考值
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import BandRow from '../components/BandRow';
 import MemberPicker from '../components/MemberPicker';
 import Spark from '../components/Spark';
+import WeightTrend from '../components/WeightTrend';
+import { DAY, kg2, md, signed, ymd } from '../lib/bodyfmt';
 import { bands, compose, type Profile } from '../lib/bia';
 import { ageOf } from '../lib/suggest';
 import { logTape, logWeight, removeTape, removeWeight, TAPE_ITEMS, useDb, type Member, type Tape } from '../lib/store';
 
-const DAY = 24 * 3600 * 1000;
-const AXIS = { fontSize: 11, fill: '#9ca3af' };
-const kg2 = (v: number) => v.toFixed(2);
-const signed = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2);
-const ymd = (ms: number) => {
-  const d = new Date(ms);
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-};
-const md = (ms: number) => `${new Date(ms).getMonth() + 1}/${new Date(ms).getDate()}`;
 /** 選今天用現在的時間；補登過去的日子用當天中午，免得排序亂掉 */
 const stamp = (day: string) => {
   const [y, m, d] = day.split('-').map(Number);
@@ -204,42 +196,6 @@ function TapeCard({ m }: { m: Member }) {
   );
 }
 
-const RANGES: [string, number][] = [['1 個月', 30], ['3 個月', 90], ['1 年', 365], ['全部', Infinity]];
-
-function Trend({ m }: { m: Member }) {
-  const [range, setRange] = useState(1);
-  const all = m.weights ?? [];
-  const pts = useMemo(() => {
-    const from = all.length ? all[all.length - 1][0] - RANGES[range][1] * DAY : 0;
-    return all.filter(([t]) => t >= from).map(([t, v]) => ({ t, v }));
-  }, [all, range]);
-  if (all.length < 2) return null;
-  const ideal = m.height ? Math.round(22 * (m.height / 100) ** 2 * 100) / 100 : null;
-  const change = pts.length >= 2 ? pts[pts.length - 1].v - pts[0].v : null;
-  return (
-    <section className="card">
-      <h2 className="font-semibold">體重趨勢</h2>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {RANGES.map(([n], i) => <button key={n} className={range === i ? 'chip-on' : 'chip'} onClick={() => setRange(i)}>{n}</button>)}
-      </div>
-      {change != null && <p className="mt-2 text-sm">這段時間 <b className={change > 0 ? 'text-orange-600' : change < 0 ? 'text-emerald-600' : ''}>{signed(change)}</b> 公斤</p>}
-      <div className="mt-2">
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={pts} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-            <CartesianGrid vertical={false} strokeOpacity={0.15} />
-            <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} tick={AXIS} tickFormatter={md} />
-            <YAxis tick={AXIS} domain={['auto', 'auto']} width={44} />
-            <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} labelFormatter={(t) => ymd(t as number)} formatter={(v: number) => [kg2(v) + ' 公斤', '體重']} />
-            {ideal && <ReferenceLine y={ideal} stroke="#9ca3af" strokeDasharray="4 4" />}
-            <Line type="monotone" dataKey="v" stroke="#0f766e" strokeWidth={2} dot={pts.length < 40} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      {ideal && <p className="muted text-xs">虛線是理想體重 {kg2(ideal)} 公斤</p>}
-    </section>
-  );
-}
-
 function Recent({ m }: { m: Member }) {
   const days = new Map<string, { t: number; kg?: number; tape?: Tape }>();
   for (const [t, kg] of m.weights ?? []) days.set(ymd(t), { ...days.get(ymd(t)), t, kg });
@@ -289,7 +245,7 @@ export default function Body() {
       <WeightCard m={m} />
       <Estimate m={m} />
       <TapeCard m={m} />
-      <Trend m={m} />
+      <WeightTrend m={m} />
       <Recent m={m} />
       <p className="muted px-1 text-xs"><Link to="/family" className="text-brand underline dark:text-brand-light">回家人頁</Link></p>
     </div>

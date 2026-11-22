@@ -109,6 +109,16 @@ function BodyRow({ b, showWho, day }: { b: BodyDay; showWho: boolean; day: strin
   );
 }
 
+/** 那天還沒記體重：補登的入口 */
+function BodyLink({ memberId, day }: { memberId: string; day: string }) {
+  const nav = useNavigate();
+  return (
+    <button className="btn btn-sm mt-3 w-full" onClick={() => { selectMember(memberId); nav('/body?day=' + day); }}>
+      ⚖️ 記這天的體重／圍度
+    </button>
+  );
+}
+
 export default function History() {
   const db = useDb();
   const [params, setParams] = useSearchParams();
@@ -210,6 +220,9 @@ export default function History() {
             {dayBody.map((b) => <BodyRow key={b.memberId} b={b} showWho={filter === '__all'} day={day} />)}
             {shown.slice(0, 300).map((r) => <RideRow key={r.id} r={r} showWho={filter === '__all'} all={db.rides} />)}
           </ul>
+        )}
+        {view === 'day' && filter !== '__all' && !dayBody.length && (
+          <BodyLink memberId={filter} day={day} />
         )}
         {shown.length === 0 && (
           <p className="muted mt-3">
